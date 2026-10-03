@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Botão "Ativar notificações" — dono clica 1x por aparelho.
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 export function BotaoPush() {
   const [estado, setEstado] = useState<"verificando" | "ativo" | "inativo" | "sem-suporte">("verificando");
   const [erro, setErro] = useState("");
+  const [teste, setTeste] = useState("");
 
   async function verificar() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -83,12 +84,29 @@ export function BotaoPush() {
   if (estado === "sem-suporte")
     return <p className="mt-2 text-sm text-slate-500">Este aparelho/navegador não suporta push.</p>;
 
+  async function enviarTeste() {
+    setTeste("");
+    try {
+      const r = await fetch("/api/push/testar", { method: "POST" });
+      const j = await r.json();
+      setTeste(r.ok ? `Teste enviado para ${j.enviadas} aparelho(s). Chegou aí?` : "Falha ao enviar.");
+    } catch {
+      setTeste("Falha ao enviar.");
+    }
+  }
+
   return (
     <div>
       {estado === "ativo" ? (
-        <Button variant="outline" size="sm" onClick={desativar} className="mt-3">
-          <BellOff /> Desativar neste aparelho
-        </Button>
+        <>
+          <Button variant="outline" size="sm" onClick={desativar} className="mt-3">
+            <BellOff /> Desativar neste aparelho
+          </Button>
+          <Button variant="ghost" size="sm" onClick={enviarTeste} className="mt-3">
+            <Send /> Enviar teste
+          </Button>
+          {teste && <p className="mt-2 text-xs font-bold text-green-300">{teste}</p>}
+        </>
       ) : (
         <Button size="sm" onClick={ativar} className="mt-3">
           <Bell /> Ativar notificações
