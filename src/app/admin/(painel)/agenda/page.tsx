@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Palmtree, Plus, Trash2, XCircle } from "luci
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatarDataLonga } from "@/lib/agendamento";
+import { gerarSlotsDia } from "@/lib/slots";
 import { hojeISO } from "@/lib/admin";
 import type { DiaAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,9 @@ export default function AdminAgenda() {
   const [novaData, setNovaData] = useState("");
   const [inicio, setInicio] = useState("19:00");
   const [fim, setFim] = useState("22:00");
+  // Abertura rápida no dia tocado (sem digitar data)
+  const [rapidoInicio, setRapidoInicio] = useState("19:00");
+  const [rapidoFim, setRapidoFim] = useState("22:00");
   const [feriasDe, setFeriasDe] = useState("");
   const [feriasAte, setFeriasAte] = useState("");
 
@@ -78,6 +82,24 @@ export default function AdminAgenda() {
     }
     setMsg(`Dia ${novaData} aberto (${inicio}–${fim}).`);
     setNovaData("");
+    carregar();
+  }
+
+  // Abertura rápida: usa o dia já selecionado no calendário
+  async function abrirRapido() {
+    if (!selecionado) return;
+    setErro("");
+    setMsg("");
+    const r = await fetch("/api/disponibilidade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataISO: selecionado, inicio: rapidoInicio, fim: rapidoFim }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => null);
+      return setErro(j?.erro ?? "Falha ao abrir o dia.");
+    }
+    setMsg(`Dia ${selecionado} aberto (${rapidoInicio}–${rapidoFim}).`);
     carregar();
   }
 
@@ -188,7 +210,20 @@ export default function AdminAgenda() {
         >
           <p className="font-bold capitalize text-white">{formatarDataLonga(selecionado)}</p>
           {detalhe.length === 0 ? (
-            <p className="mt-1 text-sm text-slate-400">Dia fechado — nada cadastrado.</p>
+            <div>
+              <p className="mt-1 text-sm text-slate-400">Dia fechado — abra rapidinho aqui:</p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <Input rotulo="Início" type="time" value={rapidoInicio} onChange={(e) => setRapidoInicio(e.target.value)} name="rap-inicio" />
+                <Input rotulo="Fim" type="time" value={rapidoFim} onChange={(e) => setRapidoFim(e.target.value)} name="rap-fim" />
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                → {gerarSlotsDia(rapidoInicio, rapidoFim).length} slot(s) de 1h (
+                {gerarSlotsDia(rapidoInicio, rapidoFim).join(", ") || "—"})
+              </p>
+              <Button onClick={abrirRapido} className="mt-2 w-full">
+                <Plus /> Abrir este dia
+              </Button>
+            </div>
           ) : (
             <ul className="mt-2 grid gap-2">
               {detalhe.map((d) => (
