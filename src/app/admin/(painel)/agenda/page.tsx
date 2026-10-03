@@ -194,7 +194,13 @@ export default function AdminAgenda() {
               >
                 {dia}
                 {!passado && (
-                  <span className={cn("h-1.5 w-1.5 rounded-full", aberto ? "bg-green-400" : "bg-slate-600")} />
+                  aberto ? (
+                    <span className="mt-0.5 rounded bg-green-500/25 px-1 text-[8px] font-extrabold tracking-wide text-green-300">
+                      ABERTO
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-slate-600" />
+                  )
                 )}
               </button>
             );
@@ -209,8 +215,7 @@ export default function AdminAgenda() {
           className="mt-3 rounded-3xl border border-white/10 bg-white/5 p-4"
         >
           <p className="font-bold capitalize text-white">{formatarDataLonga(selecionado)}</p>
-          {detalhe.length === 0 ? (
-            <div>
+          {detalhe.length === 0 ? (            <div>
               <p className="mt-1 text-sm text-slate-400">Dia fechado — abra rapidinho aqui:</p>
               <div className="mt-2 grid grid-cols-2 gap-3">
                 <Input rotulo="Início" type="time" value={rapidoInicio} onChange={(e) => setRapidoInicio(e.target.value)} name="rap-inicio" />
@@ -225,7 +230,11 @@ export default function AdminAgenda() {
               </Button>
             </div>
           ) : (
-            <ul className="mt-2 grid gap-2">
+            <div>
+              <p className="mt-1 inline-block rounded-full bg-green-500/20 px-3 py-1 text-xs font-extrabold tracking-wide text-green-300">
+                ABERTO • {livresSelecionado} vaga(s) livre(s)
+              </p>
+              <ul className="mt-2 grid gap-2">
               {detalhe.map((d) => (
                 <li key={d.inicio} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-slate-200">
                   <span className="font-bold">
@@ -245,7 +254,8 @@ export default function AdminAgenda() {
                   </button>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </div>
           )}
           <div className="mt-3 grid gap-2">
             {detalhe.length > 0 && (

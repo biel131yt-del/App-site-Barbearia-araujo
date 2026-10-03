@@ -458,7 +458,11 @@ export default function AgendarPage() {
                           {selo}
                         </span>
                       )}
-                      {!d.aberto && (
+                      {d.aberto ? (
+                        <span className="mb-1 ml-1 inline-block rounded bg-green-500/25 px-1.5 py-px text-[10px] font-extrabold tracking-wide text-green-300">
+                          ABERTO
+                        </span>
+                      ) : (
                         <span className="mb-1 inline-block rounded-full bg-white/10 px-2 py-px text-[10px] font-bold text-slate-400">
                           Fechado
                         </span>
