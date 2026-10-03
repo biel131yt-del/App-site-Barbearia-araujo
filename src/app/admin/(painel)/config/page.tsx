@@ -95,7 +95,7 @@ function Conteudo() {
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="cfg-meta" className="mb-1.5 block text-sm font-bold text-slate-200">
-              Cortes p/ grátis
+              Corte {fid.cortesParaGratis} vezes para ganhar 1 corte grátis
             </label>
             <input
               id="cfg-meta"
