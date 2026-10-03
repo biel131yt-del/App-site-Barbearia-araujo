@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { podeAcessar } from "@/lib/permissoes";
 import { BotaoSair } from "@/components/BotaoSair";
 import { NavMobile } from "@/components/NavMobile";
+import { NotificacoesApp } from "@/components/NotificacoesApp";
 import { Logo } from "@/components/marca";
 
 // Painel do dono — fundo escuro, sidebar fixa (PC) / bottom nav (mobile).
@@ -66,6 +67,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       {/* Conteúdo */}
       <div className="flex-1 pb-24 md:pb-0">
+        <NotificacoesApp />
         <header className="sticky top-0 z-40 border-b border-white/10 bg-brand-950/90 backdrop-blur md:hidden">
           <div className="container-mobile flex h-14 items-center justify-between">
             <span className="flex items-center gap-2 text-sm font-bold text-white">

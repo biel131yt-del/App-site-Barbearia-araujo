@@ -35,6 +35,14 @@ export function BotaoPush() {
       const { publicKey } = await r.json();
       if (!publicKey) throw new Error("Push não configurado no servidor.");
       const reg = await navigator.serviceWorker.register("/push-sw.js", { scope: "/push/" });
+      // No celular o worker demora a ativar — espera até 10s antes de assinar
+      let tentativas = 0;
+      while (!reg.active && tentativas < 20) {
+        await new Promise((ok) => setTimeout(ok, 500));
+        tentativas++;
+      }
+      if (!reg.active)
+        throw new Error("Não ativou. Recarregue a página e tente de novo.");
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: publicKey,
