@@ -1,4 +1,6 @@
 ﻿import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { gerarSlotsDia } from "@/lib/slots";
 
@@ -25,16 +27,54 @@ export async function GET(req: Request) {
   }
 }
 
-// PATCH /api/agendamentos { id, pagamento?, status? } — ajustes do dono/cliente
-// (ex: trocar PIX p/ "pagar no local", marcar concluído/cancelado)
+// PATCH /api/agendamentos — ações do dono (requer login):
+// { id, status } → concluido (foi feito, entra no caixa) | cancelado
+// { id, dataISO, hora } → remanejar p/ outro horário (valida dia aberto + livre)
+// { id, pagamento } → trocar forma de pagamento
 export async function PATCH(req: Request) {
+  const sess = await getServerSession(authOptions);
   try {
-    const { id, pagamento, status } = await req.json();
+    const { id, pagamento, status, dataISO, hora } = await req.json();
     if (!id) return NextResponse.json({ erro: "Informe id" }, { status: 400 });
-    const dados: { pagamento?: string; status?: string } = {};
+    const atual = await db.agendamento.findUnique({ where: { id } });
+    if (!atual) return NextResponse.json({ erro: "Não encontrado" }, { status: 404 });
+
+    // Sem login (cliente no checkout): só pode desistir do PIX pendente → pagar no local
+    if (!sess) {
+      if (pagamento === "local" && atual.status === "aguardando") {
+        const ag = await db.agendamento.update({
+          where: { id },
+          data: { pagamento: "local", status: "confirmado", pagamentoId: null, qrTexto: null },
+          include: { servico: true, cliente: true },
+        });
+        return NextResponse.json(ag);
+      }
+      return NextResponse.json({ erro: "Login necessário" }, { status: 401 });
+    }
+
+    const dados: { pagamento?: string; status?: string; dataISO?: string; hora?: string } = {};
     if (pagamento === "pix" || pagamento === "local") dados.pagamento = pagamento;
     if (["confirmado", "aguardando", "pago", "pendente", "cancelado", "concluido"].includes(status))
       dados.status = status;
+
+    // Remanejar: valida novo dia/hora como numa reserva nova
+    const novaData = typeof dataISO === "string" && dataISO !== atual.dataISO ? dataISO : null;
+    const novaHora = typeof hora === "string" && hora !== atual.hora ? hora : null;
+    if (novaData || novaHora) {
+      const dISO = novaData ?? atual.dataISO;
+      const h = novaHora ?? atual.hora;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dISO) || !/^\d{2}:\d{2}$/.test(h))
+        return NextResponse.json({ erro: "Data/hora inválidas" }, { status: 400 });
+      const dias = await db.disponibilidade.findMany({ where: { dataISO: dISO } });
+      if (dias.length === 0 || !dias.some((d) => gerarSlotsDia(d.inicio, d.fim).includes(h)))
+        return NextResponse.json({ erro: "Novo horário fora do expediente" }, { status: 409 });
+      const ocupado = await db.agendamento.findUnique({ where: { dataISO_hora: { dataISO: dISO, hora: h } } });
+      if (ocupado && ocupado.id !== id && ocupado.status !== "cancelado")
+        return NextResponse.json({ erro: "Novo horário já ocupado" }, { status: 409 });
+      dados.dataISO = dISO;
+      dados.hora = h;
+    }
+
     if (Object.keys(dados).length === 0)
       return NextResponse.json({ erro: "Nada para atualizar" }, { status: 400 });
     // trocar p/ local limpa o PIX pendente

@@ -13,19 +13,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ erro: "Informe dataISO" }, { status: 400 });
 
   const ags = await db.agendamento.findMany({
-    where: { dataISO, status: { not: "cancelado" } },
+    where: { dataISO, status: { in: ["concluido", "pago"] } },
     include: { servico: true },
   });
   const soma = (f: (a: (typeof ags)[number]) => boolean) =>
     ags.filter(f).reduce((s, a) => s + a.servico.precoCentavos, 0);
   const fechamento = await db.caixaFechamento.findUnique({ where: { dataISO } }).catch(() => null);
+  const pend = await db.agendamento.count({
+    where: { dataISO, status: { notIn: ["concluido", "pago", "cancelado"] } },
+  });
   return NextResponse.json({
     dataISO,
     qtd: ags.length,
     totalCentavos: soma(() => true),
     totalPix: soma((a) => a.pagamento === "pix" && a.status === "pago"),
     totalDinheiro: soma((a) => !(a.pagamento === "pix" && a.status === "pago")),
-    pendentes: ags.filter((a) => a.status !== "pago").length,
+    pendentes: pend,
     fechado: !!fechamento,
   });
 }

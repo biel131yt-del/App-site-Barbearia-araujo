@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataISO ?? ""))
       return NextResponse.json({ erro: "Informe dataISO" }, { status: 400 });
     const ags = await db.agendamento.findMany({
-      where: { dataISO, status: { not: "cancelado" } },
+      where: { dataISO, status: { in: ["concluido", "pago"] } },
       include: { servico: true },
     });
     const soma = (f: (a: (typeof ags)[number]) => boolean) =>

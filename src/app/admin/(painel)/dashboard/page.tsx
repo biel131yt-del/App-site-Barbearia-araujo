@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Banknote, CalendarCheck, QrCode, TrendingUp, Users } from "lucide-react";
+import { Banknote, CalendarCheck, Check, Clock, QrCode, TrendingUp, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/barber-icons";
 import { useMensagemWhats } from "@/components/use-mensagem-whats";
@@ -12,6 +12,7 @@ import {
   contar,
   formatarReais,
   hojeISO,
+  pendentes,
   semanaISO,
   somar,
   type AgendamentoAdmin,
@@ -22,6 +23,15 @@ import { cn } from "@/lib/utils";
 export default function AdminDashboard() {
   const [ags, setAgs] = useState<AgendamentoAdmin[]>([]);
   const [erro, setErro] = useState("");
+
+  async function recarregar() {
+    try {
+      const r = await fetch("/api/agendamentos", { cache: "no-store" });
+      if (r.ok) setAgs(await r.json());
+    } catch {
+      /* mantém */
+    }
+  }
 
   useEffect(() => {
     fetch("/api/agendamentos", { cache: "no-store" })
@@ -52,6 +62,7 @@ export default function AdminDashboard() {
   const deHoje = ags
     .filter((a) => a.dataISO === hoje && a.status !== "cancelado")
     .sort((a, b) => a.hora.localeCompare(b.hora));
+  const pendentesHoje = pendentes(ags, (d) => d === hoje);
   const proximos = ags
     .filter((a) => a.dataISO >= hoje && a.status !== "cancelado")
     .sort((a, b) => (a.dataISO + a.hora).localeCompare(b.dataISO + b.hora))
@@ -96,7 +107,9 @@ export default function AdminDashboard() {
       </div>
 
       <section className="mt-6">
-        <h2 className="font-display text-2xl tracking-wide text-white">HOJE ({deHoje.length})</h2>
+        <h2 className="font-display text-2xl tracking-wide text-white">
+          HOJE ({deHoje.length - pendentesHoje} feitos · {pendentesHoje} aguardando)
+        </h2>
         {deHoje.length === 0 ? (
           <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
             Nenhum agendamento hoje. Abra um dia na Agenda para receber clientes.
@@ -104,7 +117,7 @@ export default function AdminDashboard() {
         ) : (
           <ul className="mt-2 grid gap-2.5">
             {deHoje.map((a) => (
-              <ItemAgendamento key={a.id} a={a} />
+              <ItemAgendamento key={a.id} a={a} onMudou={recarregar} />
             ))}
           </ul>
         )}
@@ -119,7 +132,7 @@ export default function AdminDashboard() {
         ) : (
           <ul className="mt-2 grid gap-2.5">
             {proximos.map((a) => (
-              <ItemAgendamento key={a.id} a={a} mostrarData />
+              <ItemAgendamento key={a.id} a={a} mostrarData onMudou={recarregar} />
             ))}
           </ul>
         )}
@@ -181,41 +194,169 @@ function StatusNotifs({ a }: { a: AgendamentoAdmin }) {
   );
 }
 
-function ItemAgendamento({ a, mostrarData }: { a: AgendamentoAdmin; mostrarData?: boolean }) {
+function ItemAgendamento({ a, mostrarData, onMudou }: { a: AgendamentoAdmin; mostrarData?: boolean; onMudou: () => void }) {
+  const [remanejando, setRemanejando] = useState(false);
   const msg = useMensagemWhats({ nome: a.cliente.nome, servico: a.servico.nome, data: formatarDataBR(a.dataISO), hora: a.hora });
   const selo =
     a.status === "pago"
       ? { txt: "Pago", cls: "bg-green-500/20 text-green-300" }
-      : a.status === "aguardando"
-        ? { txt: "PIX pendente", cls: "bg-yellow-500/20 text-yellow-300" }
-        : { txt: "Pendente", cls: "bg-white/10 text-slate-400" };
+      : a.status === "concluido"
+        ? { txt: "Feito ✓", cls: "bg-green-500/20 text-green-300" }
+        : a.status === "aguardando"
+          ? { txt: "PIX pendente", cls: "bg-yellow-500/20 text-yellow-300" }
+          : { txt: "Aguardando", cls: "bg-white/10 text-slate-400" };
+  const finalizado = a.status === "concluido" || a.status === "cancelado";
+
+  async function acao(corpo: Record<string, string>, confirma?: string) {
+    if (confirma && !window.confirm(confirma)) return;
+    const r = await fetch("/api/agendamentos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: a.id, ...corpo }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => null);
+      alert(j?.erro ?? "Falha ao atualizar");
+      return;
+    }
+    setRemanejando(false);
+    onMudou();
+  }
+
   return (
-    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-      <span className="flex h-11 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-brand-600 text-white">
-        <span className="text-sm font-extrabold">{a.hora}</span>
-        {mostrarData && <span className="text-[10px]">{a.dataISO.slice(5)}</span>}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-bold text-white">{a.cliente.nome}</span>
-        <span className="flex items-center gap-1 text-xs text-slate-400">
-          {a.pagamento === "pix" ? <QrCode className="h-3 w-3" /> : <Banknote className="h-3 w-3" />}
-          {a.servico.nome} • {formatarReais(a.servico.precoCentavos)}
+    <li className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-brand-600 text-white">
+          <span className="text-sm font-extrabold">{a.hora}</span>
+          {mostrarData && <span className="text-[10px]">{a.dataISO.slice(5)}</span>}
         </span>
-        <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold", selo.cls)}>
-          {selo.txt}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-bold text-white">{a.cliente.nome}</span>
+          <span className="flex items-center gap-1 text-xs text-slate-400">
+            {a.pagamento === "pix" ? <QrCode className="h-3 w-3" /> : <Banknote className="h-3 w-3" />}
+            {a.servico.nome} • {formatarReais(a.servico.precoCentavos)}
+          </span>
+          <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold", selo.cls)}>
+            {selo.txt}
+          </span>
+          <StatusNotifs a={a} />
         </span>
-        <StatusNotifs a={a} />
-      </span>
-      <a
-        href={linkWhatsAppCliente(a.cliente.telefone, msg)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={`Chamar ${a.cliente.nome} no WhatsApp`}
-      >
-        <Button size="icon" className="bg-green-500 hover:bg-green-600" aria-label="WhatsApp">
-          <WhatsAppIcon className="h-6 w-6" />
-        </Button>
-      </a>
+        <a
+          href={linkWhatsAppCliente(a.cliente.telefone, msg)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Chamar ${a.cliente.nome} no WhatsApp`}
+        >
+          <Button size="icon" className="bg-green-500 hover:bg-green-600" aria-label="WhatsApp">
+            <WhatsAppIcon className="h-6 w-6" />
+          </Button>
+        </a>
+      </div>
+
+      {/* Ações do dono: confirmar feito (entra no caixa), remanejar, cancelar */}
+      {!finalizado && (
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={() => acao({ status: "concluido" }, `Confirmar que fez ${a.servico.nome} de ${a.cliente.nome}? Entra no caixa.`)}
+            className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl bg-green-500/20 text-xs font-extrabold text-green-300"
+          >
+            <Check className="h-4 w-4" /> Feito
+          </button>
+          <button
+            onClick={() => setRemanejando((v) => !v)}
+            className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl bg-white/10 text-xs font-extrabold text-slate-200"
+          >
+            <Clock className="h-4 w-4" /> Remanejar
+          </button>
+          <button
+            onClick={() => acao({ status: "cancelado" }, `Cancelar ${a.servico.nome} de ${a.cliente.nome}?`)}
+            className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl bg-red-500/15 text-xs font-extrabold text-red-300"
+          >
+            <X className="h-4 w-4" /> Cancelar
+          </button>
+        </div>
+      )}
+      {remanejando && !finalizado && <PainelRemanejar a={a} onFechar={() => setRemanejando(false)} onMudou={onMudou} />}
     </li>
+  );
+}
+
+// Troca dia/hora (valida no servidor: dia aberto + slot livre)
+function PainelRemanejar({ a, onFechar, onMudou }: { a: AgendamentoAdmin; onFechar: () => void; onMudou: () => void }) {
+  const [data, setData] = useState(a.dataISO);
+  const [hora, setHora] = useState("");
+  const [slots, setSlots] = useState<{ hora: string; disponivel: boolean }[]>([]);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    setHora("");
+    fetch(`/api/disponibilidade?de=${data}&ate=${data}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((dias: { slots: { hora: string; disponivel: boolean }[] }[]) =>
+        setSlots(dias.flatMap((d) => d.slots))
+      )
+      .catch(() => setSlots([]));
+  }, [data]);
+
+  async function salvar() {
+    setErro("");
+    if (!hora) return setErro("Escolha o novo horário.");
+    const r = await fetch("/api/agendamentos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: a.id, dataISO: data, hora }),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) return setErro(j?.erro ?? "Falha ao remanejar.");
+    onFechar();
+    onMudou();
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-white/10 bg-brand-950/60 p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label htmlFor={`rem-${a.id}`} className="mb-1 block text-xs font-bold text-slate-300">
+            Novo dia
+          </label>
+          <input
+            id={`rem-${a.id}`}
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className="h-12 w-full rounded-xl border-2 border-white/10 bg-white/5 px-3 text-sm text-white [color-scheme:dark]"
+          />
+        </div>
+        <div>
+          <span className="mb-1 block text-xs font-bold text-slate-300">Nova hora</span>
+          <div className="flex max-h-12 flex-wrap gap-1 overflow-y-auto">
+            {slots.filter((s) => s.disponivel).map((s) => (
+              <button
+                key={s.hora}
+                onClick={() => setHora(s.hora)}
+                className={cn(
+                  "min-h-[40px] rounded-lg border px-2 text-xs font-extrabold",
+                  hora === s.hora ? "border-accent bg-accent text-white" : "border-white/10 text-slate-200"
+                )}
+              >
+                {s.hora}
+              </button>
+            ))}
+            {slots.filter((s) => s.disponivel).length === 0 && (
+              <span className="text-xs text-slate-500">Sem vaga neste dia</span>
+            )}
+          </div>
+        </div>
+      </div>
+      {erro && <p className="mt-2 text-xs font-bold text-red-300">{erro}</p>}
+      <div className="mt-2 flex gap-2">
+        <button onClick={salvar} className="min-h-[44px] flex-1 rounded-xl bg-brand-600 text-xs font-extrabold text-white">
+          Confirmar troca
+        </button>
+        <button onClick={onFechar} className="min-h-[44px] rounded-xl px-4 text-xs font-bold text-slate-400">
+          Fechar
+        </button>
+      </div>
+    </div>
   );
 }

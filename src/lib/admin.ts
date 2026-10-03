@@ -21,15 +21,24 @@ export function formatarReais(centavos: number) {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-// Soma faturamento (ignora cancelados) dentro de um filtro de data
+// Só entra no caixa/faturamento o que foi CONCLUÍDO ou PAGO (reserva sozinha não conta).
+// confirmado = reservado | aguardando = PIX gerado | pago = PIX aprovado | concluido = feito
+const VALE_CAIXA = ["concluido", "pago"];
+
+// Soma faturamento (ignora cancelados E pendentes) dentro de um filtro de data
 export function somar(ags: AgendamentoAdmin[], filtro: (iso: string) => boolean) {
   return ags
-    .filter((a) => a.status !== "cancelado" && filtro(a.dataISO))
+    .filter((a) => VALE_CAIXA.includes(a.status) && filtro(a.dataISO))
     .reduce((s, a) => s + a.servico.precoCentavos, 0);
 }
 
 export function contar(ags: AgendamentoAdmin[], filtro: (iso: string) => boolean) {
-  return ags.filter((a) => a.status !== "cancelado" && filtro(a.dataISO)).length;
+  return ags.filter((a) => VALE_CAIXA.includes(a.status) && filtro(a.dataISO)).length;
+}
+
+// Reservas ainda não confirmadas como feitas
+export function pendentes(ags: AgendamentoAdmin[], filtro: (iso: string) => boolean) {
+  return ags.filter((a) => !VALE_CAIXA.includes(a.status) && a.status !== "cancelado" && filtro(a.dataISO)).length;
 }
 
 // ISO yyyy-mm-dd compara como string (funciona p/ ordem cronológica)
