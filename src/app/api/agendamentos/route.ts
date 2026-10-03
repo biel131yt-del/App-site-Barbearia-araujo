@@ -162,9 +162,10 @@ export async function POST(req: Request) {
     // FASE 6: push no celular do dono + e-mail backup (best-effort)
     try {
       const { notificarDono } = await import("@/lib/push");
+      const { formatarDataBR } = await import("@/lib/agendamento");
       const n = await notificarDono(
         "Novo agendamento",
-        `${cliente.nome} — ${servico.nome} em ${dataISO} às ${hora}`,
+        `${cliente.nome} — ${servico.nome} em ${formatarDataBR(dataISO)} às ${hora}`,
         "/admin"
       );
       pushStatus = n > 0 ? "enviado" : "sem-inscricao";
