@@ -138,7 +138,12 @@ export default function AgendarPage() {
   }, [whatsapp]);
 
   const diasMock = useMemo(() => gerarDiasAbertos(14), []);
-  const diaAPI = diasAPI?.find((d) => d.dataISO === dataISO) ?? null;
+  // Junta slots de todos os intervalos do dia (dia pode ter manhã + noite)
+  const slotsDiaAPI = useMemo(
+    () => (diasAPI ?? []).filter((d) => d.dataISO === dataISO).flatMap((d) => d.slots),
+    [diasAPI, dataISO]
+  );
+  const diaAPI = slotsDiaAPI.length > 0 ? { slots: slotsDiaAPI } : null;
   const slots = useMemo(
     () => (diaAPI ? diaAPI.slots : dataISO ? gerarSlots(dataISO) : []),
     [diaAPI, dataISO]
@@ -157,14 +162,22 @@ export default function AgendarPage() {
   const isoHoje = `${hojeD.getFullYear()}-${String(hojeD.getMonth() + 1).padStart(2, "0")}-${String(hojeD.getDate()).padStart(2, "0")}`;
   const amanhaD = new Date(hojeD.getFullYear(), hojeD.getMonth(), hojeD.getDate() + 1);
   const isoAmanha = `${amanhaD.getFullYear()}-${String(amanhaD.getMonth() + 1).padStart(2, "0")}-${String(amanhaD.getDate()).padStart(2, "0")}`;
-  const diasTela = diasAPI
-    ? diasAPI.map((d) => ({
-        iso: d.dataISO,
-        date: new Date(`${d.dataISO}T12:00:00`),
-        aberto: d.slots.some((s) => s.disponivel),
-        motivo: undefined as string | undefined,
-      }))
-    : diasMock;
+  const diasTela = useMemo(() => {
+    if (!diasAPI) return diasMock;
+    // Agrupa intervalos do mesmo dia num card só (evita dia duplicado)
+    const mapa = new Map<string, { slots: DiaAPI["slots"] }>();
+    for (const d of diasAPI) {
+      const atual = mapa.get(d.dataISO) ?? { slots: [] };
+      atual.slots.push(...d.slots);
+      mapa.set(d.dataISO, atual);
+    }
+    return [...mapa.entries()].map(([iso, v]) => ({
+      iso,
+      date: new Date(`${iso}T12:00:00`),
+      aberto: v.slots.some((s) => s.disponivel),
+      motivo: undefined as string | undefined,
+    }));
+  }, [diasAPI, diasMock]);
 
   const podeAvancar =
     (etapa === 1 && !!servicoId) ||
