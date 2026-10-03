@@ -1,0 +1,134 @@
+// Schema Prisma — FASE 3 (SQLite local, 100% grátis, nunca desativa)
+// Migra p/ Postgres/Supabase depois trocando provider + DATABASE_URL.
+// Comente em português para manutenção do dono.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Serviço oferecido (Corte, Barba, Combo...)
+model Servico {
+  id          String   @id @default(cuid())
+  nome        String
+  // preço em centavos (ex: 3500 = R$ 35,00) — evita erro de float
+  precoCentavos Int
+  duracaoMin  Int      @default(40)
+  descricao   String   @default("")
+  fotoUrl     String? // FASE extra: foto real do corte (opcional)
+  faixa       String   @default("adulto") // adulto | infantil (filtro na hora de marcar)
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+
+  agendamentos Agendamento[]
+}
+
+// Cliente identificado pelo WhatsApp/telefone (único)
+model Cliente {
+  id        String   @id @default(cuid())
+  nome      String
+  telefone  String   @unique // só dígitos, ex: 555196824286
+  bonusResetEm DateTime? // FASE extra: fidelidade conta só após este marco
+  criadoEm  DateTime @default(now())
+
+  agendamentos Agendamento[]
+}
+
+// Dia que o dono ABRIU manualmente (ex: 26/10 19:00–22:00 → 3 slots de 1h)
+// Se não houver registro do dia = dia fechado (regra do negócio).
+model Disponibilidade {
+  id      String @id @default(cuid())
+  dataISO String // yyyy-mm-dd
+  inicio  String // HH:mm (ex: 19:00)
+  fim     String // HH:mm (ex: 22:00)
+
+  criadoEm DateTime @default(now())
+
+  @@unique([dataISO, inicio])
+  @@index([dataISO])
+}
+
+// Agendamento do cliente
+model Agendamento {
+  id        String @id @default(cuid())
+  dataISO   String // yyyy-mm-dd
+  hora      String // HH:mm
+  pagamento String @default("local") // pix | local
+  status    String @default("confirmado") // confirmado | aguardando | pago | pendente | cancelado | concluido
+
+  // PIX via Mercado Pago (FASE 7) — null quando "pagar no local"
+  pagamentoId String? // id do pagamento no Mercado Pago
+  qrTexto     String? // código copia-e-cola
+
+  // Status de cada notificação (FASE extra) — visível no painel do dono
+  pushStatus     String @default("pendente") // enviado | sem-inscricao | falha
+  googleStatus   String @default("pendente") // criado | desligado | falha
+  emailStatus    String @default("pendente") // enviado | desligado | falha
+
+  servicoId String
+  servico   Servico @relation(fields: [servicoId], references: [id])
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  criadoEm DateTime @default(now())
+
+  // impede 2 agendamentos no mesmo dia+hora
+  @@unique([dataISO, hora])
+  @@index([dataISO])
+  @@index([clienteId])
+}
+
+// Conta Google do dono (OAuth2) — FASE 5
+// Guarda o refresh_token para criar eventos sem pedir login de novo.
+// TODO produção: criptografar refreshToken antes de salvar.
+model GoogleConta {
+  id           String   @id @default("principal")
+  refreshToken String
+  email        String?
+  atualizadoEm DateTime @updatedAt
+}
+
+// Inscrição push do aparelho do dono (Web Push) — FASE 6
+// Um registro por aparelho/navegador (endpoint é único).
+model PushInscricao {
+  endpoint String   @id
+  p256dh   String
+  auth     String
+  criadoEm DateTime @default(now())
+}
+
+// Usuário do painel (dono + equipe) — FASE 9
+// papel: admin (tudo) | agenda (só agenda) | caixa (só caixa)
+model Usuario {
+  id        String   @id @default(cuid())
+  nome      String
+  login     String   @unique // ex: dono
+  senhaHash String
+  papel     String   @default("admin")
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+}
+
+// Fechamento de caixa do dia — FASE 9 (foto do dia p/ relatório mensal)
+model CaixaFechamento {
+  dataISO       String   @id // yyyy-mm-dd
+  totalCentavos Int
+  totalPix      Int
+  totalDinheiro Int
+  qtd           Int
+  fechadoEm     DateTime @default(now())
+}
+
+// Config global do negócio — FASE extra (fidelidade, instagram)
+// id sempre "global". GET público (site precisa ler), PATCH só super_admin.
+model Configuracao {
+  id               String  @id @default("global")
+  fidelidadeAtiva  Boolean @default(true)
+  cortesParaGratis Int     @default(10)
+  instagramUrl     String  @default("")
+  mensagemWhats    String  @default("") // modelo da msg p/ cliente (vazio = padrão)
+}

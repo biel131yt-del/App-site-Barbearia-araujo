@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #06182b;
+  --foreground: #f1f5f9;
+  --radius: 0.75rem;
+}
+
+body {
+  color: var(--foreground);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(30, 58, 138, 0.35), transparent 60%),
+    #06182b;
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Títulos com presença de barbearia */
+.font-display {
+  font-family: var(--font-display), "Oswald", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+/* Área de toque mínima acessível (44px) */
+@layer base {
+  button,
+  a {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}
+
+/* Utilitários mobile-first */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .container-mobile {
+    @apply mx-auto w-full max-w-md px-5 md:max-w-3xl lg:max-w-5xl;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Padrão SVG de tesoura repetido (3-5% de opacidade sobre o azul) */
+  .bg-barber {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.05' stroke-width='3' stroke-linecap='round'%3E%3Ccircle cx='38' cy='38' r='9'/%3E%3Ccircle cx='38' cy='82' r='9'/%3E%3Cline x1='46' y1='45' x2='88' y2='82'/%3E%3Cline x1='46' y1='75' x2='88' y2='38'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  /* Risco diagonal p/ indisponível */
+  .riscado {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 8px,
+      rgba(255, 255, 255, 0.08) 8px,
+      rgba(255, 255, 255, 0.08) 10px
+    );
+  }
+  /* Pressionar dá feedback (micro-interação padrão nos botões) */
+  .press {
+    @apply transition-transform active:scale-[0.97];
+  }
+}
