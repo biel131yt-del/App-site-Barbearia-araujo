@@ -51,7 +51,8 @@ export function aplicarModelo(modelo: string, vars: Record<string, string>) {
 // Link wa.me para falar COM O CLIENTE (usado no painel admin — FASE 4)
 // Passe o modelo salvo em /api/config para usar o texto do dono.
 export function linkWhatsAppCliente(telefoneCliente: string, mensagem: string) {
-  const tel = `55${telefoneCliente.replace(/\D/g, "")}`;
+  const dig = telefoneCliente.replace(/\D/g, "");
+  const tel = dig.startsWith("55") ? dig : `55${dig}`; // evita 55 duplicado
   return `https://wa.me/${tel}?text=${encodeURIComponent(mensagem)}`;
 }
 
