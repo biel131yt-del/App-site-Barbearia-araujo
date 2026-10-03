@@ -12,24 +12,26 @@ import type { Agendamento } from "./agendamento";
 
 export type ProvedorWhatsApp = "link" | "push" | "evolution" | "zapi";
 
-// Monta o texto do agendamento (reutilizado pelo link e pelo futuro envio automático)
-export function montarMensagemAgendamento(a: Agendamento) {
-  const serv = SERVICOS_MOCK.find((s) => s.id === a.servicoId);
+// Monta o texto do agendamento com VOZ DO CLIENTE (1ª pessoa, natural).
+// Ex: "Fala! Aqui é o José, quero confirmar meu corte: Barba — 03/10/2026 às 11:00..."
+export function montarMensagemAgendamento(a: Agendamento, servicoNome?: string) {
+  const serv =
+    servicoNome ?? SERVICOS_MOCK.find((s) => s.id === a.servicoId)?.nome ?? a.servicoId;
   const linhas = [
-    "Novo agendamento — Barbearia Araujo",
+    `Fala! Aqui é ${a.nome}, quero confirmar meu horário:`,
     "",
-    `Cliente: ${a.nome}`,
-    `Serviço: ${serv?.nome ?? a.servicoId}`,
-    `Data: ${formatarDataBR(a.dataISO)} às ${a.hora}`,
-    `Tel: ${a.whatsapp}`,
-    `Pagamento: ${a.pagamento === "pix" ? "PIX antecipado" : "No local"}`,
+    `${serv} — ${formatarDataBR(a.dataISO)} às ${a.hora}`,
+    `Meu número: ${a.whatsapp}`,
+    `Pagamento: ${a.pagamento === "pix" ? "PIX (já pago)" : "no local"}`,
+    "",
+    "Pode confirmar? Valeu!",
   ];
   return linhas.join("\n");
 }
 
 // FASE atual: gera link wa.me para o DONO (WhatsApp pessoal/normal)
-export function linkWhatsAppDono(a: Agendamento, numero = WHATSAPP_DONO) {
-  const texto = encodeURIComponent(montarMensagemAgendamento(a));
+export function linkWhatsAppDono(a: Agendamento, servicoNome?: string, numero = WHATSAPP_DONO) {
+  const texto = encodeURIComponent(montarMensagemAgendamento(a, servicoNome));
   return `https://wa.me/${numero}?text=${texto}`;
 }
 

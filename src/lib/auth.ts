@@ -18,6 +18,8 @@ export const authOptions: NextAuthOptions = {
         if (!login || !senha) return null;
         const user = await db.usuario.findUnique({ where: { login } });
         if (!user || !user.ativo) return null;
+        // Acesso temporário vencido → bloqueia
+        if (user.expiraEm && user.expiraEm.getTime() < Date.now()) return null;
         const ok = await bcrypt.compare(senha, user.senhaHash);
         if (!ok) return null;
         return { id: user.id, name: user.nome, papel: user.papel } as { id: string; name: string; papel: string };
@@ -31,14 +33,20 @@ export const authOptions: NextAuthOptions = {
         token.papel = (user as unknown as { papel: string }).papel;
       }
       // Revalida o papel no banco a cada requisição (promoção/rebaixamento vale na hora,
-      // sem precisar sair e entrar de novo)
+      // sem precisar sair e entrar de novo). Expirado/bloqueado vira "expirado"
+      // e o middleware + permissões barram tudo.
       try {
         if (token.uid) {
           const atual = await db.usuario.findUnique({
             where: { id: token.uid as string },
-            select: { papel: true, ativo: true },
+            select: { papel: true, ativo: true, expiraEm: true },
           });
-          if (atual && atual.ativo) token.papel = atual.papel;
+          const vencido = atual?.expiraEm && atual.expiraEm.getTime() < Date.now();
+          if (!atual || !atual.ativo || vencido) {
+            token.papel = "expirado";
+            return token;
+          }
+          token.papel = atual.papel;
         }
       } catch {
         /* mantém o papel do token */

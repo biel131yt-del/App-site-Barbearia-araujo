@@ -15,7 +15,7 @@ export async function GET() {
   if (!(await exigirDono())) return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
   const usuarios = await db.usuario.findMany({
     orderBy: { criadoEm: "asc" },
-    select: { id: true, nome: true, login: true, papel: true, ativo: true },
+    select: { id: true, nome: true, login: true, papel: true, ativo: true, expiraEm: true },
   });
   return NextResponse.json(usuarios);
 }
@@ -23,16 +23,22 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!(await exigirDono())) return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
   try {
-    const { nome, login, senha, papel } = await req.json();
+    const { nome, login, senha, papel, diasTemporario } = await req.json();
     const lg = (login ?? "").trim().toLowerCase();
     if (!nome?.trim() || !lg || !senha || senha.length < 4)
       return NextResponse.json({ erro: "Nome, login e senha (4+ letras) são obrigatórios" }, { status: 400 });
     if (!["super_admin", "admin", "barbeiro"].includes(papel))
       return NextResponse.json({ erro: "Papel inválido" }, { status: 400 });
+    // Acesso temporário: expira em N dias (ex: amigo testando)
+    const dias = Number(diasTemporario);
+    const expiraEm =
+      Number.isInteger(dias) && dias > 0 && dias <= 90
+        ? new Date(Date.now() + dias * 86400000)
+        : null;
     const senhaHash = await bcrypt.hash(senha, 10);
     const u = await db.usuario.create({
-      data: { nome: nome.trim(), login: lg, senhaHash, papel },
-      select: { id: true, nome: true, login: true, papel: true, ativo: true },
+      data: { nome: nome.trim(), login: lg, senhaHash, papel, expiraEm },
+      select: { id: true, nome: true, login: true, papel: true, ativo: true, expiraEm: true },
     });
     return NextResponse.json(u, { status: 201 });
   } catch (e: unknown) {

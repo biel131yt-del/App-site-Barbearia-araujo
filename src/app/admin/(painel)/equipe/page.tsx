@@ -9,12 +9,13 @@ import { ROTULOS_PAPEL, type Papel } from "@/lib/permissoes";
 // Equipe — só o dono vê (API + middleware barram o resto).
 export default function AdminEquipe() {
   const [usuarios, setUsuarios] = useState<
-    { id: string; nome: string; login: string; papel: string; ativo: boolean }[]
+    { id: string; nome: string; login: string; papel: string; ativo: boolean; expiraEm: string | null }[]
   >([]);
   const [nome, setNome] = useState("");
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [papel, setPapel] = useState<Papel>("barbeiro");
+  const [diasTemp, setDiasTemp] = useState("");
   const [msg, setMsg] = useState("");
   const [erro, setErro] = useState("");
 
@@ -33,7 +34,7 @@ export default function AdminEquipe() {
     const r = await fetch("/api/usuarios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, login, senha, papel }),
+      body: JSON.stringify({ nome, login, senha, papel, diasTemporario: Number(diasTemp) || undefined }),
     });
     const j = await r.json();
     if (!r.ok) return setErro(j?.erro ?? "Falha ao adicionar.");
@@ -41,6 +42,7 @@ export default function AdminEquipe() {
     setNome("");
     setLogin("");
     setSenha("");
+    setDiasTemp("");
     carregar();
   }
 
@@ -62,6 +64,9 @@ export default function AdminEquipe() {
               <span className="block text-sm font-bold text-white">{u.nome}</span>
               <span className="text-xs text-slate-400">
                 {u.login} • {(ROTULOS_PAPEL as Record<string, string>)[u.papel] ?? u.papel}
+                {u.expiraEm
+                  ? ` • até ${new Date(u.expiraEm).toLocaleDateString("pt-BR")}`
+                  : ""}
               </span>
             </span>
           </li>
@@ -76,6 +81,14 @@ export default function AdminEquipe() {
           <Input rotulo="Nome" name="eq-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
           <Input rotulo="Login" name="eq-login" value={login} onChange={(e) => setLogin(e.target.value)} />
           <Input rotulo="Senha" name="eq-senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+          <Input
+            rotulo="Acesso temporário (dias, vazio = permanente)"
+            name="eq-dias"
+            inputMode="numeric"
+            value={diasTemp}
+            onChange={(e) => setDiasTemp(e.target.value.replace(/\D/g, ""))}
+            placeholder="Ex: 7"
+          />
           <div>
             <label htmlFor="eq-papel" className="mb-1.5 block text-sm font-bold text-slate-200">
               Permissão

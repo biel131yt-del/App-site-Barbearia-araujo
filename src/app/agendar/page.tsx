@@ -715,7 +715,7 @@ export default function AgendarPage() {
                     <CalendarPlus /> Adicionar ao calendário
                   </Button>
                 </a>
-                <a href={linkWhatsAppDono(agendamento)} target="_blank" rel="noopener noreferrer">
+                <a href={linkWhatsAppDono(agendamento, servico?.nome)} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" className="w-full border-green-500/50 text-green-300 hover:bg-green-500 hover:text-white">
                     <WhatsAppIcon className="h-5 w-5" /> Confirmar no WhatsApp
                   </Button>
