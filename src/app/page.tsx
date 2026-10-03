@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -206,7 +206,7 @@ export default function Home() {
             ))}
           </div>
           <a
-            href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent("Fala! Meu corte não está na lista, vamos conversar? ✂️")}`}
+            href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent("Fala! Meu corte não está na lista, vamos conversar?")}`}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 flex items-center gap-3 rounded-2xl border-2 border-dashed border-white/20 p-4 transition hover:border-green-400/60 hover:bg-green-500/5"
@@ -266,7 +266,7 @@ export default function Home() {
 
       <footer className="container-mobile mt-8 text-center">
         <p className="font-display text-2xl tracking-wide text-white">BARBEARIA ARAUJO</p>
-        <p className="text-xs tracking-widest text-slate-500">ESTILO É ATITUDE ✂️</p>
+        <p className="text-xs tracking-widest text-slate-500">ESTILO É ATITUDE</p>
       </footer>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-brand-950/95 p-3 backdrop-blur md:hidden">

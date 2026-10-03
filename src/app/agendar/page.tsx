@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -396,7 +396,7 @@ export default function AgendarPage() {
                 })}
                 {/* Card serviço personalizado — fora da lista filtrada */}
                 <a
-                  href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent("Fala! Meu corte não está na lista, vamos conversar? ✂️")}`}
+                  href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent("Fala! Meu corte não está na lista, vamos conversar?")}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-white/20 bg-transparent p-4 text-left transition-all hover:border-green-400/60 hover:bg-green-500/5"
@@ -481,7 +481,7 @@ export default function AgendarPage() {
                     O dono só abre com agendamento. Quer tentar uma exceção?
                   </p>
                   <a
-                    href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent(`Fala! Vi que ${formatarDataBR(dataISO)} está fechado, rola abrir uma exceção? ✂️`)}`}
+                    href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent(`Fala! Vi que ${formatarDataBR(dataISO)} está fechado, rola abrir uma exceção?`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-green-500 px-5 font-bold text-white"
@@ -535,7 +535,7 @@ export default function AgendarPage() {
                 })}
               </div>
               <p className="relative mt-3 text-center text-xs text-slate-400 opacity-60">
-                Escolha o melhor horário pra você ✂️
+                Escolha o melhor horário pra você
               </p>
               {vagasLivres === 0 && (
                 <p className="relative mt-3 rounded-xl bg-red-500/15 p-3 text-sm font-semibold text-red-300">

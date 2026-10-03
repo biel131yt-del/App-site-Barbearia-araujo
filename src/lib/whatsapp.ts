@@ -1,4 +1,4 @@
-// Integração WhatsApp — SEM WhatsApp Business (só wa.me + push + futuro Evolution/Z-API)
+﻿// Integração WhatsApp — SEM WhatsApp Business (só wa.me + push + futuro Evolution/Z-API)
 // Estratégia em camadas (ver especificação atualizada):
 // - HOJE (Fase 6a): link wa.me pré-preenchido — cliente clica e envia ao dono.
 // - FASE 6b: push notification via PWA (não depende do cliente clicar).
@@ -36,7 +36,7 @@ export function linkWhatsAppDono(a: Agendamento, numero = WHATSAPP_DONO) {
 // Modelo padrão da mensagem p/ o cliente. Variáveis: {nome} {servico} {data} {hora}
 // O dono personaliza em Ajustes (texto livre — conversa ou marketing).
 export const MENSAGEM_PADRAO =
-  "Olá {nome}! Aqui é da Barbearia Araujo ✂️ — confirmando seu {servico} em {data} às {hora}.";
+  "Olá {nome}! Aqui é da Barbearia Araujo — confirmando seu {servico} em {data} às {hora}.";
 
 export function aplicarModelo(modelo: string, vars: Record<string, string>) {
   let texto = modelo && modelo.trim() ? modelo : MENSAGEM_PADRAO;

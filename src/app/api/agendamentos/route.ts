@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { gerarSlotsDia } from "@/lib/slots";
 
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
     try {
       const { notificarDono } = await import("@/lib/push");
       const n = await notificarDono(
-        "Novo agendamento ✂️",
+        "Novo agendamento",
         `${cliente.nome} — ${servico.nome} em ${dataISO} às ${hora}`,
         "/admin"
       );

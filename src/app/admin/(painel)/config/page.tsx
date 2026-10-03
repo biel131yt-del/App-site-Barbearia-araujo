@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { CalendarCheck, Gift, Camera, MessageCircle, BellRing } from "lucide-react";
@@ -185,7 +185,7 @@ function Conteudo() {
           rows={3}
           value={fid.mensagemWhats}
           onChange={(e) => setFid({ ...fid, mensagemWhats: e.target.value })}
-          placeholder="Olá {nome}! Aqui é da Barbearia Araujo ✂️ — confirmando seu {servico} em {data} às {hora}."
+          placeholder="Olá {nome}! Aqui é da Barbearia Araujo — confirmando seu {servico} em {data} às {hora}."
           className="w-full rounded-xl border-2 border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
         />
         <div className="mt-2 flex gap-2">
