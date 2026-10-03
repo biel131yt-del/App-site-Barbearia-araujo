@@ -30,9 +30,8 @@ import { SERVICOS_MOCK, formatarPreco, type Servico } from "@/lib/dados-mock";
 import {
   buscarClientePorTelefone,
   diaSemanaCurto,
+  formatarDataBR,
   formatarDataLonga,
-  gerarDiasAbertos,
-  gerarSlots,
   linkGoogleCalendar,
   linkWhatsAppDono,
   mascararTelefone,
@@ -43,7 +42,6 @@ import {
   type Pagamento,
 } from "@/lib/agendamento";
 import {
-  disponibilidadeMockParaAPI,
   listarDisponibilidade,
   listarServicos,
   type DiaAPI,
@@ -115,8 +113,8 @@ export default function AgendarPage() {
     const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 13);
     const ate = `${fim.getFullYear()}-${String(fim.getMonth() + 1).padStart(2, "0")}-${String(fim.getDate()).padStart(2, "0")}`;
     listarDisponibilidade(de, ate)
-      .then((d) => setDiasAPI(d.length > 0 ? d : disponibilidadeMockParaAPI()))
-      .catch(() => setDiasAPI(disponibilidadeMockParaAPI()));
+      .then((d) => setDiasAPI(d))
+      .catch(() => setDiasAPI([])); // offline = tudo fechado (nunca mostra vaga falsa)
   }, []);
 
   useEffect(() => {
@@ -137,17 +135,14 @@ export default function AgendarPage() {
     return () => clearTimeout(t);
   }, [whatsapp]);
 
-  const diasMock = useMemo(() => gerarDiasAbertos(14), []);
   // Junta slots de todos os intervalos do dia (dia pode ter manhã + noite)
   const slotsDiaAPI = useMemo(
     () => (diasAPI ?? []).filter((d) => d.dataISO === dataISO).flatMap((d) => d.slots),
     [diasAPI, dataISO]
   );
   const diaAPI = slotsDiaAPI.length > 0 ? { slots: slotsDiaAPI } : null;
-  const slots = useMemo(
-    () => (diaAPI ? diaAPI.slots : dataISO ? gerarSlots(dataISO) : []),
-    [diaAPI, dataISO]
-  );
+  // Sem registro = sem slots (nunca inventa horário)
+  const slots = useMemo(() => (diaAPI ? diaAPI.slots : []), [diaAPI]);
   const vagasLivres = slots.filter((s) => s.disponivel).length;
   const servico = servicos.find((s) => s.id === servicoId) ?? null;
   const clienteMock = buscarClientePorTelefone(whatsapp);
@@ -162,26 +157,24 @@ export default function AgendarPage() {
   const isoHoje = `${hojeD.getFullYear()}-${String(hojeD.getMonth() + 1).padStart(2, "0")}-${String(hojeD.getDate()).padStart(2, "0")}`;
   const amanhaD = new Date(hojeD.getFullYear(), hojeD.getMonth(), hojeD.getDate() + 1);
   const isoAmanha = `${amanhaD.getFullYear()}-${String(amanhaD.getMonth() + 1).padStart(2, "0")}-${String(amanhaD.getDate()).padStart(2, "0")}`;
+  // Grade contínua de 14 dias — SEM registro = FECHADO (extras: dono abre quando quer)
   const diasTela = useMemo(() => {
-    if (!diasAPI) return diasMock;
-    // Agrupa intervalos do mesmo dia num card só (evita dia duplicado)
-    const mapa = new Map<string, { slots: DiaAPI["slots"] }>();
-    for (const d of diasAPI) {
-      const atual = mapa.get(d.dataISO) ?? { slots: [] };
-      atual.slots.push(...d.slots);
-      mapa.set(d.dataISO, atual);
+    const base = new Date();
+    const lista: { iso: string; date: Date; aberto: boolean }[] = [];
+    for (let i = 0; i < 14; i++) {
+      const dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+      const regs = (diasAPI ?? []).filter((d) => d.dataISO === iso);
+      const livres = regs.flatMap((r) => r.slots).filter((s) => s.disponivel).length;
+      lista.push({ iso, date: dt, aberto: regs.length > 0 && livres > 0 });
     }
-    return [...mapa.entries()].map(([iso, v]) => ({
-      iso,
-      date: new Date(`${iso}T12:00:00`),
-      aberto: v.slots.some((s) => s.disponivel),
-      motivo: undefined as string | undefined,
-    }));
-  }, [diasAPI, diasMock]);
+    return lista;
+  }, [diasAPI]);
+  const diaFechado = dataISO ? !diasTela.some((d) => d.iso === dataISO && d.aberto) : false;
 
   const podeAvancar =
     (etapa === 1 && !!servicoId) ||
-    (etapa === 2 && !!dataISO) ||
+    (etapa === 2 && !!dataISO && !diaFechado) ||
     (etapa === 3 && !!hora) ||
     (etapa === 4 && nome.trim().length >= 2 && telefoneValido(whatsapp)) ||
     etapa === 5;
@@ -189,7 +182,8 @@ export default function AgendarPage() {
   function avancar() {
     setErro("");
     if (etapa === 1 && !servicoId) return setErro("Escolha um serviço para continuar.");
-    if (etapa === 2 && !dataISO) return setErro("Escolha um dia disponível.");
+    if (etapa === 2 && !dataISO) return setErro("Escolha um dia.");
+    if (etapa === 2 && diaFechado) return setErro("Dia fechado — chame no WhatsApp para negociar uma exceção.");
     if (etapa === 3 && !hora) return setErro("Escolha um horário livre.");
     if (etapa === 4) {
       if (nome.trim().length < 2) return setErro("Digite seu nome.");
@@ -425,7 +419,14 @@ export default function AgendarPage() {
               <h1 className="font-display flex items-center gap-2 text-4xl tracking-wide text-white">
                 <CalendarDays className="h-7 w-7" /> QUAL DIA?
               </h1>
-              <p className="text-sm text-slate-400">Mostrando só dias com vaga</p>
+              <p className="text-sm text-slate-400">Dias sem vaga aparecem fechados</p>
+              {diasAPI === null ? (
+                <div className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-4" aria-label="Carregando dias">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="h-24 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+                  ))}
+                </div>
+              ) : (
               <div className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-4">
                 {diasTela.map((d) => {
                   const sel = d.iso === dataISO;
@@ -434,25 +435,32 @@ export default function AgendarPage() {
                     <motion.button
                       key={d.iso}
                       whileTap={{ y: -2 }}
-                      disabled={!d.aberto}
                       onClick={() => {
                         setDataISO(d.iso);
                         setHora(null);
                         setErro("");
                       }}
-                      title={d.aberto ? formatarDataLonga(d.iso) : d.motivo}
+                      title={d.aberto ? formatarDataLonga(d.iso) : "Fechado — toque p/ negociar"}
+                      aria-label={`${d.date.getDate()}, ${d.aberto ? "aberto" : "fechado"}`}
                       className={cn(
                         "rounded-2xl border-2 p-3 text-center transition-all",
-                        sel
+                        sel && d.aberto
                           ? "border-accent bg-accent text-white shadow-glow-red"
-                          : d.aberto
-                            ? "border-white/15 bg-white/5 text-white hover:bg-white/10"
-                            : "riscado cursor-not-allowed border-transparent text-slate-500 opacity-30 line-through"
+                          : sel
+                            ? "border-yellow-400/70 bg-yellow-500/10 text-white"
+                            : d.aberto
+                              ? "border-white/15 bg-white/5 text-white hover:bg-white/10"
+                              : "riscado border-white/5 text-slate-500 opacity-60"
                       )}
                     >
                       {selo && (
-                        <span className={cn("mb-1 inline-block rounded-full px-2 py-px text-[10px] font-bold", sel ? "bg-white/20" : "bg-accent/20 text-red-300")}>
+                        <span className={cn("mb-1 inline-block rounded-full px-2 py-px text-[10px] font-bold", sel && d.aberto ? "bg-white/20" : "bg-accent/20 text-red-300")}>
                           {selo}
+                        </span>
+                      )}
+                      {!d.aberto && (
+                        <span className="mb-1 inline-block rounded-full bg-white/10 px-2 py-px text-[10px] font-bold text-slate-400">
+                          Fechado
                         </span>
                       )}
                       <span className="block text-[11px] font-bold opacity-80">{diaSemanaCurto(d.date)}</span>
@@ -464,6 +472,24 @@ export default function AgendarPage() {
                   );
                 })}
               </div>
+              )}
+              {/* Negociar exceção em dia fechado */}
+              {dataISO && diaFechado && (
+                <div className="mt-3 rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-4 text-center">
+                  <p className="text-sm font-bold text-yellow-200">🔒 Fechado neste dia</p>
+                  <p className="mt-1 text-xs text-slate-300">
+                    O dono só abre com agendamento. Quer tentar uma exceção?
+                  </p>
+                  <a
+                    href={`https://wa.me/${WHATSAPP_DONO}?text=${encodeURIComponent(`Fala! Vi que ${formatarDataBR(dataISO)} está fechado, rola abrir uma exceção? ✂️`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-green-500 px-5 font-bold text-white"
+                  >
+                    <WhatsAppIcon className="h-5 w-5" /> Negociar no WhatsApp
+                  </a>
+                </div>
+              )}
               {servico && dataISO && (
                 <p className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
                   <strong className="text-white">{servico.nome}</strong> • {formatarDataLonga(dataISO)}

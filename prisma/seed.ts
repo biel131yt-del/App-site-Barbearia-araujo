@@ -29,20 +29,9 @@ async function main() {
     if (temHist === 0) await db.servico.deleteMany({ where: { nome: antigo } });
   }
 
-  // Disponibilidade: próximos 14 dias (seg–sex 09–19h, sáb 08–12h, dom fechado)
-  const hoje = new Date();
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i);
-    if (d.getDay() === 0) continue; // domingo fechado
-    const dataISO = toISO(d);
-    const intervalo = d.getDay() === 6 ? { inicio: "08:00", fim: "12:00" } : { inicio: "09:00", fim: "19:00" };
-    const existe = await db.disponibilidade.findFirst({
-      where: { dataISO, inicio: intervalo.inicio },
-    });
-    if (!existe) await db.disponibilidade.create({ data: { dataISO, ...intervalo } });
-  }
-
-  console.log("Seed OK: serviços + 14 dias de disponibilidade");
+  // Disponibilidade: modelo EXTRAS — nada pré-aberto.
+  // O dono abre cada dia no painel (Agenda → Adicionar dia).
+  console.log("Seed OK: serviços (agenda começa fechada)");
 
   // Dono inicial — login "dono" / senha "araujo123" (TROQUE a senha depois!)
   const dono = await db.usuario.findUnique({ where: { login: "dono" } });

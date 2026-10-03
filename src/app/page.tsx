@@ -26,6 +26,7 @@ export default function Home() {
   const [servicos, setServicos] = useState<Servico[]>(SERVICOS_MOCK);
   const [fidelidadeAtiva, setFidelidadeAtiva] = useState(true);
   const [proximo, setProximo] = useState<{ rotulo: string; hora: string; vagas: number } | null>(null);
+  const [semAgenda, setSemAgenda] = useState(false);
   useEffect(() => {
     listarServicos().then(setServicos).catch(() => null);
     fetch("/api/config")
@@ -55,11 +56,12 @@ export default function Home() {
           const livres = d.slots.filter((s) => s.disponivel);
           if (livres.length > 0) {
             setProximo({ rotulo: rotuloDia(d.dataISO), hora: livres[0].hora, vagas: livres.length });
-            break;
+            return;
           }
         }
+        setSemAgenda(true); // extras: tudo fechado por enquanto
       } catch {
-        /* mantém estático */
+        setSemAgenda(true);
       }
     })();
   }, []);
@@ -129,6 +131,13 @@ export default function Home() {
                     {proximo.rotulo} • {proximo.hora}
                   </p>
                   <p className="mt-1 text-sm text-slate-400">{proximo.vagas} vaga(s) restante(s)</p>
+                </>
+              ) : semAgenda ? (
+                <>
+                  <p className="font-display mt-1 text-3xl tracking-wide text-yellow-200">
+                    AGENDA FECHADA
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">Chama no WhatsApp e vamos combinar</p>
                 </>
               ) : (
                 <p className="mt-1 text-sm text-slate-400">Consultando agenda…</p>
