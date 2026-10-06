@@ -239,6 +239,11 @@ function ItemAgendamento({ a, mostrarData, onMudou }: { a: AgendamentoAdmin; mos
           <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold", selo.cls)}>
             {selo.txt}
           </span>
+          {a.trocoPara && (
+            <span className="ml-1 mt-1 inline-block rounded-full bg-yellow-500/20 px-2 py-0.5 text-[10px] font-bold text-yellow-300">
+              Troco p/ R${a.trocoPara}
+            </span>
+          )}
           <StatusNotifs a={a} />
         </span>
         <a

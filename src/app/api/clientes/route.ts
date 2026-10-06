@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { normalizarNome, telefoneCanonico } from "@/lib/cliente";
 import { db } from "@/lib/db";
-
-function soDigitos(v: string) {
-  return (v ?? "").replace(/\D/g, "");
-}
 
 // GET /api/clientes — ?telefone=... (bem-vindo de volta) ou ?todos=1 (painel, requer login)
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   if (searchParams.get("todos") === "1") return listarTodos();
-  const telefone = soDigitos(searchParams.get("telefone") ?? "");
+  const telefone = telefoneCanonico(searchParams.get("telefone") ?? "");
   if (telefone.length < 8)
     return NextResponse.json({ cliente: null, totalAgendamentos: 0, ultimoServico: null, ultimoDataISO: null });
 
@@ -80,7 +77,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ erro: "Sem permissão" }, { status: 403 });
   try {
     const { telefone } = await req.json();
-    const tel = soDigitos(telefone ?? "");
+    const tel = telefoneCanonico(telefone ?? "");
     if (!tel) return NextResponse.json({ erro: "Informe telefone" }, { status: 400 });
     await db.cliente.update({ where: { telefone: tel }, data: { bonusResetEm: new Date() } });
     return NextResponse.json({ ok: true });
@@ -94,14 +91,14 @@ export async function PATCH(req: Request) {
 export async function POST(req: Request) {
   try {
     const { nome, telefone } = await req.json();
-    const tel = soDigitos(telefone ?? "");
+    const tel = telefoneCanonico(telefone ?? "");
     if (!nome?.trim() || tel.length < 10)
       return NextResponse.json({ erro: "Nome e WhatsApp com DDD são obrigatórios" }, { status: 400 });
 
     const cliente = await db.cliente.upsert({
       where: { telefone: tel },
-      update: { nome: nome.trim() },
-      create: { nome: nome.trim(), telefone: tel },
+      update: { nome: normalizarNome(nome) },
+      create: { nome: normalizarNome(nome), telefone: tel },
     });
     return NextResponse.json(cliente, { status: 201 });
   } catch (e) {

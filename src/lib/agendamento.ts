@@ -21,6 +21,7 @@ export type Agendamento = {
   nome: string;
   whatsapp: string;
   pagamento: Pagamento;
+  trocoPara?: string | null;
   criadoEm: string;
 };
 

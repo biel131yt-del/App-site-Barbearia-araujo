@@ -22,7 +22,11 @@ export function montarMensagemAgendamento(a: Agendamento, servicoNome?: string) 
     "",
     `${serv} — ${formatarDataBR(a.dataISO)} às ${a.hora}`,
     `Meu número: ${a.whatsapp}`,
-    `Pagamento: ${a.pagamento === "pix" ? "PIX (já pago)" : "no local"}`,
+    a.pagamento === "pix"
+      ? "Pagamento: PIX (já pago)"
+      : a.trocoPara
+        ? `Pagamento: no local (dinheiro, preciso de troco para ${a.trocoPara})`
+        : "Pagamento: no local",
     "",
     "Pode confirmar? Valeu!",
   ];

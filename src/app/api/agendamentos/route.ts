@@ -1,12 +1,9 @@
 ﻿import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { normalizarNome, telefoneCanonico } from "@/lib/cliente";
 import { db } from "@/lib/db";
 import { gerarSlotsDia } from "@/lib/slots";
-
-function soDigitos(v: string) {
-  return (v ?? "").replace(/\D/g, "");
-}
 
 // GET /api/agendamentos?dataISO=2026-10-26 — lista do dia (dashboard FASE 4)
 // Sem filtro retorna tudo (até 1000) p/ faturamento/relatórios do painel.
@@ -98,9 +95,12 @@ export async function PATCH(req: Request) {
 // POST /api/agendamentos — cria agendamento (valida dia aberto + slot livre)
 export async function POST(req: Request) {
   try {
-    const { servicoId, dataISO, hora, nome, telefone, whatsapp, pagamento } = await req.json();
-    const tel = soDigitos(telefone ?? whatsapp ?? "");
+    const { servicoId, dataISO, hora, nome, telefone, whatsapp, pagamento, trocoPara } = await req.json();
+    const tel = telefoneCanonico(telefone ?? whatsapp ?? "");
     const pag = pagamento === "pix" ? "pix" : "local";
+    // Troco: só vale p/ pagamento no local, guarda só dígitos (ex: "100")
+    const troco =
+      pag === "local" && trocoPara ? String(trocoPara).replace(/\D/g, "").slice(0, 4) || null : null;
 
     if (!servicoId || !dataISO || !hora)
       return NextResponse.json({ erro: "Serviço, data e hora são obrigatórios" }, { status: 400 });
@@ -129,15 +129,28 @@ export async function POST(req: Request) {
     const servico = await db.servico.findFirst({ where: { id: servicoId, ativo: true } });
     if (!servico) return NextResponse.json({ erro: "Serviço inválido" }, { status: 400 });
 
-    // 4) cliente (cria ou atualiza nome)
-    const cliente = await db.cliente.upsert({
-      where: { telefone: tel },
-      update: { nome: nome.trim() },
-      create: { nome: nome.trim(), telefone: tel },
-    });
+    // 4) cliente — antiduplicado automático:
+    // a) telefone canônico (une com/sem DDI, com/sem 0)
+    // b) mesmo nome + linha compatível (últimos 10 dígitos iguais) → usa o existente
+    // c) nome sempre normalizado ("gabriel  aguiar" → "Gabriel Aguiar")
+    const nomeOk = normalizarNome(nome);
+    let cliente = await db.cliente.findUnique({ where: { telefone: tel } });
+    if (!cliente) {
+      const mesmoNome = await db.cliente.findMany({ where: { nome: nomeOk } });
+      cliente =
+        mesmoNome.find((c) => {
+          const a = telefoneCanonico(c.telefone);
+          return a.slice(-10) === tel.slice(-10) && tel.length >= 10;
+        }) ?? null;
+    }
+    if (cliente) {
+      cliente = await db.cliente.update({ where: { id: cliente.id }, data: { nome: nomeOk } });
+    } else {
+      cliente = await db.cliente.create({ data: { nome: nomeOk, telefone: tel } });
+    }
 
     const ag = await db.agendamento.create({
-      data: { dataISO, hora, pagamento: pag, servicoId: servico.id, clienteId: cliente.id },
+      data: { dataISO, hora, pagamento: pag, trocoPara: troco, servicoId: servico.id, clienteId: cliente.id },
       include: { servico: true, cliente: true },
     });
 

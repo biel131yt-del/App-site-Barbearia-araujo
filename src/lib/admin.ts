@@ -5,6 +5,7 @@ export type AgendamentoAdmin = {
   hora: string;
   pagamento: string;
   status: string;
+  trocoPara: string | null;
   pushStatus: string;
   googleStatus: string;
   emailStatus: string;

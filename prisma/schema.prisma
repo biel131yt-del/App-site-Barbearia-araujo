@@ -65,6 +65,9 @@ model Agendamento {
   pagamentoId String? // id do pagamento no Mercado Pago
   qrTexto     String? // código copia-e-cola
 
+  // Troco (dinheiro): "para quanto" o cliente vai pagar (ex: "100"). Null = sem troco/PIX.
+  trocoPara String?
+
   // Status de cada notificação (FASE extra) — visível no painel do dono
   pushStatus     String @default("pendente") // enviado | sem-inscricao | falha
   googleStatus   String @default("pendente") // criado | desligado | falha

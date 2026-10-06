@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
@@ -78,12 +78,17 @@ export default function AgendarPage() {
   const [nome, setNome] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [pagamento, setPagamento] = useState<Pagamento>("local");
+  // Pagamento no local: PIX ou dinheiro (+ troco p/ o dono se preparar)
+  const [metodoLocal, setMetodoLocal] = useState<"pix" | "dinheiro">("pix");
+  const [trocoValor, setTrocoValor] = useState("");
   const [erro, setErro] = useState("");
   const [agendamento, setAgendamento] = useState<Agendamento | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [pix, setPix] = useState<{ qrBase64: string; qrTexto: string } | null>(null);
   const [verificandoPix, setVerificandoPix] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  // Aba do WhatsApp aberta no clique (gesto do usuário = sem bloqueio de popup)
+  const abaWhats = useRef<Window | null>(null);
 
   const [servicos, setServicos] = useState<Servico[]>(SERVICOS_MOCK);
   const [filtroFaixa, setFiltroFaixa] = useState("todas");
@@ -189,7 +194,15 @@ export default function AgendarPage() {
       if (nome.trim().length < 2) return setErro("Digite seu nome.");
       if (!telefoneValido(whatsapp)) return setErro("Digite um WhatsApp válido com DDD.");
     }
-    if (etapa === 5) return confirmar();
+    if (etapa === 5) {
+      // Abre a aba AGORA (no gesto) e preenche o link após criar a reserva
+      try {
+        abaWhats.current = window.open("about:blank", "_blank");
+      } catch {
+        abaWhats.current = null;
+      }
+      return confirmar();
+    }
     setEtapa((e) => Math.min(e + 1, 5));
   }
 
@@ -201,10 +214,21 @@ export default function AgendarPage() {
       const r = await fetch("/api/agendamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ servicoId, dataISO, hora, nome: nome.trim(), telefone: whatsapp.trim(), pagamento }),
+        body: JSON.stringify({
+          servicoId,
+          dataISO,
+          hora,
+          nome: nome.trim(),
+          telefone: whatsapp.trim(),
+          pagamento,
+          trocoPara: pagamento === "local" && metodoLocal === "dinheiro" ? trocoValor || null : null,
+        }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.erro ?? "Falha ao agendar");
+      if (!r.ok) {
+        fecharAbaWhats();
+        throw new Error(j?.erro ?? "Falha ao agendar");
+      }
       const novo: Agendamento = {
         id: j.id ?? `ag-${Date.now()}`,
         servicoId: j.servicoId ?? servicoId,
@@ -213,10 +237,12 @@ export default function AgendarPage() {
         nome: j.cliente?.nome ?? nome.trim(),
         whatsapp: j.cliente?.telefone ?? whatsapp.trim(),
         pagamento,
+        trocoPara: j.trocoPara ?? null,
         criadoEm: j.criadoEm ?? new Date().toISOString(),
       };
       salvarAgendamentoLocal(novo);
       setAgendamento(novo);
+      abrirWhats(novo); // reserva criada → WhatsApp abre sozinho
 
       if (pagamento === "pix") {
         try {
@@ -240,6 +266,7 @@ export default function AgendarPage() {
       }
       setEtapa(6);
     } catch (e) {
+      fecharAbaWhats();
       const novo: Agendamento = {
         id: `ag-${Date.now()}`,
         servicoId,
@@ -252,6 +279,7 @@ export default function AgendarPage() {
       };
       salvarAgendamentoLocal(novo);
       setAgendamento(novo);
+      abrirWhats(novo); // mesmo offline: dono recebe no WhatsApp
       setEtapa(6);
       if (e instanceof Error && e.message !== "Failed to fetch") setErro("");
     } finally {
@@ -276,6 +304,26 @@ export default function AgendarPage() {
     return () => clearInterval(t);
   }, [etapa, agendamento]);
 
+  // Leva a aba aberta no clique direto p/ o WhatsApp (força o envio da mensagem)
+  function abrirWhats(novo: Agendamento) {
+    try {
+      const link = linkWhatsAppDono(novo, servico?.nome);
+      if (abaWhats.current && !abaWhats.current.closed) abaWhats.current.location.href = link;
+      else window.open(link, "_blank");
+    } catch {
+      /* tela de sucesso tem o botão de novo */
+    }
+  }
+
+  function fecharAbaWhats() {
+    try {
+      abaWhats.current?.close();
+    } catch {
+      /* ignora */
+    }
+    abaWhats.current = null;
+  }
+
   async function verificarPixAgora() {
     if (!agendamento) return;
     setVerificandoPix(true);
@@ -298,7 +346,14 @@ export default function AgendarPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: agendamento.id, pagamento: "local" }),
     }).catch(() => null);
-    setAgendamento({ ...agendamento, pagamento: "local" });
+    const atual = { ...agendamento, pagamento: "local" as Pagamento };
+    setAgendamento(atual);
+    // Saiu do PIX: abre o WhatsApp na hora (gesto = sem bloqueio)
+    try {
+      window.open(linkWhatsAppDono(atual, servico?.nome), "_blank");
+    } catch {
+      /* botão da tela de sucesso serve de novo */
+    }
     setEtapa(6);
   }
 
@@ -656,6 +711,68 @@ export default function AgendarPage() {
                   )}
                 </button>
               </div>
+
+              {/* Pagando no local: PIX ou dinheiro? Dinheiro alto = avisa o troco */}
+              {pagamento === "local" && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-sm font-bold text-white">Vai pagar como?</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(["pix", "dinheiro"] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setMetodoLocal(m);
+                          if (m === "pix") setTrocoValor("");
+                        }}
+                        aria-pressed={metodoLocal === m}
+                        className={cn(
+                          "min-h-[44px] rounded-xl border-2 text-sm font-extrabold capitalize",
+                          metodoLocal === m
+                            ? "border-accent bg-accent/20 text-white"
+                            : "border-white/10 text-slate-400"
+                        )}
+                      >
+                        {m === "pix" ? "PIX" : "Dinheiro"}
+                      </button>
+                    ))}
+                  </div>
+                  {metodoLocal === "dinheiro" && (
+                    <div className="mt-3">
+                      <p className="text-xs font-bold text-slate-300">Vai precisar de troco?</p>
+                      <div className="mt-1.5 flex gap-2">
+                        {["50", "100", "200"].map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setTrocoValor(trocoValor === v ? "" : v)}
+                            aria-pressed={trocoValor === v}
+                            className={cn(
+                              "min-h-[44px] flex-1 rounded-xl border-2 text-sm font-extrabold",
+                              trocoValor === v
+                                ? "border-accent bg-accent/20 text-white"
+                                : "border-white/10 text-slate-400"
+                            )}
+                          >
+                            R${v}
+                          </button>
+                        ))}
+                        <input
+                          value={trocoValor}
+                          onChange={(e) => setTrocoValor(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          placeholder="Outro"
+                          inputMode="numeric"
+                          aria-label="Troco para outro valor"
+                          className="h-[44px] w-20 rounded-xl border-2 border-white/10 bg-white/5 px-2 text-center text-sm font-bold text-white placeholder:text-slate-500 focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                      {trocoValor && (
+                        <p className="mt-1.5 text-xs text-green-300">
+                          Avisaremos: “preciso de troco para {trocoValor}”
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.section>
           )}
 
