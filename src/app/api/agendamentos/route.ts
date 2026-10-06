@@ -71,6 +71,8 @@ export async function PATCH(req: Request) {
       const ocupado = await db.agendamento.findUnique({ where: { dataISO_hora: { dataISO: dISO, hora: h } } });
       if (ocupado && ocupado.id !== id && ocupado.status !== "cancelado")
         return NextResponse.json({ erro: "Novo horário já ocupado" }, { status: 409 });
+      if (ocupado && ocupado.id !== id)
+        await db.agendamento.delete({ where: { id: ocupado.id } }); // limpa cancelado
       dados.dataISO = dISO;
       dados.hora = h;
     }
@@ -113,12 +115,13 @@ export async function POST(req: Request) {
     if (!horaValida)
       return NextResponse.json({ erro: "Horário fora do expediente deste dia" }, { status: 409 });
 
-    // 2) slot não pode estar ocupado
+    // 2) slot não pode estar ocupado (reserva cancelada libera: apaga o registro morto)
     const ocupado = await db.agendamento.findUnique({
       where: { dataISO_hora: { dataISO, hora } },
     });
     if (ocupado && ocupado.status !== "cancelado")
       return NextResponse.json({ erro: "Este horário acabou de ser ocupado" }, { status: 409 });
+    if (ocupado) await db.agendamento.delete({ where: { id: ocupado.id } });
 
     // 3) serviço existe?
     const servico = await db.servico.findFirst({ where: { id: servicoId, ativo: true } });
