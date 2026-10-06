@@ -81,8 +81,24 @@ export function BotaoPush() {
   }
 
   if (estado === "verificando") return <p className="mt-2 text-sm text-slate-400">Verificando…</p>;
-  if (estado === "sem-suporte")
-    return <p className="mt-2 text-sm text-slate-500">Este aparelho/navegador não suporta push.</p>;
+  if (estado === "sem-suporte") {
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    return (
+      <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-relaxed text-slate-300">
+        {ios ? (
+          <>
+            <p className="font-bold text-white">No iPhone, ative assim:</p>
+            <p className="mt-1">1. Abra este site no <strong>SAFARI</strong> (não pelo WhatsApp/Instagram/Chrome)</p>
+            <p>2. Toque <strong>Compartilhar → Adicionar à Tela de Início</strong></p>
+            <p>3. Abra o <strong>app instalado</strong>, entre e volte aqui para ativar</p>
+            <p className="mt-1 text-slate-500">Exige iOS 16.4 ou mais novo.</p>
+          </>
+        ) : (
+          <p>Abra no Chrome/Edge/Safari atualizado (navegador interno de WhatsApp/Instagram não suporta).</p>
+        )}
+      </div>
+    );
+  }
 
   async function enviarTeste() {
     setTeste("");
