@@ -66,7 +66,7 @@ export async function PATCH(req: Request) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dISO) || !/^\d{2}:\d{2}$/.test(h))
         return NextResponse.json({ erro: "Data/hora inválidas" }, { status: 400 });
       const dias = await db.disponibilidade.findMany({ where: { dataISO: dISO } });
-      if (dias.length === 0 || !dias.some((d) => gerarSlotsDia(d.inicio, d.fim).includes(h)))
+      if (dias.length === 0 || !dias.some((d) => gerarSlotsDia(d.inicio, d.fim, d.slotMin ?? 60).includes(h)))
         return NextResponse.json({ erro: "Novo horário fora do expediente" }, { status: 409 });
       const ocupado = await db.agendamento.findUnique({ where: { dataISO_hora: { dataISO: dISO, hora: h } } });
       if (ocupado && ocupado.id !== id && ocupado.status !== "cancelado")
@@ -111,7 +111,9 @@ export async function POST(req: Request) {
     const dias = await db.disponibilidade.findMany({ where: { dataISO } });
     if (dias.length === 0)
       return NextResponse.json({ erro: "Este dia está fechado" }, { status: 409 });
-    const horaValida = dias.some((d) => gerarSlotsDia(d.inicio, d.fim).includes(hora));
+    const horaValida = dias.some((d) =>
+      gerarSlotsDia(d.inicio, d.fim, d.slotMin ?? 60).includes(hora)
+    );
     if (!horaValida)
       return NextResponse.json({ erro: "Horário fora do expediente deste dia" }, { status: 409 });
 

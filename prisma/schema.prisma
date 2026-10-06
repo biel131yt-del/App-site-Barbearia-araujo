@@ -38,13 +38,14 @@ model Cliente {
   agendamentos Agendamento[]
 }
 
-// Dia que o dono ABRIU manualmente (ex: 26/10 19:00–22:00 → 3 slots de 1h)
-// Se não houver registro do dia = dia fechado (regra do negócio).
+// Dia que o dono ABRIU manualmente (ex: 26/10 19:00–22:00)
+// slotMin: tamanho de cada horário (30 ou 60 min). Sem registro = fechado.
 model Disponibilidade {
   id      String @id @default(cuid())
   dataISO String // yyyy-mm-dd
   inicio  String // HH:mm (ex: 19:00)
   fim     String // HH:mm (ex: 22:00)
+  slotMin Int    @default(60)
 
   criadoEm DateTime @default(now())
 

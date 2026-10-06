@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Palmtree, Plus, Trash2, XCircle } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Palmtree, Plus, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatarDataLonga } from "@/lib/agendamento";
@@ -25,9 +25,18 @@ export default function AdminAgenda() {
   const [novaData, setNovaData] = useState("");
   const [inicio, setInicio] = useState("19:00");
   const [fim, setFim] = useState("22:00");
+  const [duracao, setDuracao] = useState<30 | 60>(60);
   // Abertura rápida no dia tocado (sem digitar data)
   const [rapidoInicio, setRapidoInicio] = useState("19:00");
   const [rapidoFim, setRapidoFim] = useState("22:00");
+  const [rapidoDuracao, setRapidoDuracao] = useState<30 | 60>(60);
+  // Abrir semana toda (7 dias a partir de uma data)
+  const [semDe, setSemDe] = useState("");
+  const [semInicio, setSemInicio] = useState("09:00");
+  const [semFim, setSemFim] = useState("19:00");
+  const [semDuracao, setSemDuracao] = useState<30 | 60>(60);
+  const [semDias, setSemDias] = useState<number[]>([1, 2, 3, 4, 5, 6]); // seg–sáb (0=dom)
+  const [abrindoSemana, setAbrindoSemana] = useState(false);
   const [feriasDe, setFeriasDe] = useState("");
   const [feriasAte, setFeriasAte] = useState("");
 
@@ -74,14 +83,46 @@ export default function AdminAgenda() {
     const r = await fetch("/api/disponibilidade", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dataISO: novaData, inicio, fim }),
+      body: JSON.stringify({ dataISO: novaData, inicio, fim, slotMin: duracao }),
     });
     if (!r.ok) {
       const j = await r.json().catch(() => null);
       return setErro(j?.erro ?? "Falha ao abrir o dia.");
     }
-    setMsg(`Dia ${novaData} aberto (${inicio}–${fim}).`);
+    setMsg(`Dia ${novaData} aberto (${inicio}–${fim}, slots de ${duracao}min).`);
     setNovaData("");
+    carregar();
+  }
+
+  // Abrir semana toda: repete o horário nos dias marcados, 7 dias a partir da data
+  async function abrirSemana() {
+    setErro("");
+    setMsg("");
+    if (!semDe || !semInicio || !semFim) return setErro("Preencha a data inicial e o horário.");
+    if (semDias.length === 0) return setErro("Marque ao menos um dia da semana.");
+    if (!window.confirm(`Abrir ${semInicio}–${semFim} nos dias marcados, por 7 dias a partir de ${semDe}?`)) return;
+    setAbrindoSemana(true);
+    const [a, m, d] = semDe.split("-").map(Number);
+    const base = new Date(a, m - 1, d);
+    const iso = (dt: Date) =>
+      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    let abertos = 0;
+    for (let i = 0; i < 7; i++) {
+      const dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      if (!semDias.includes(dt.getDay())) continue;
+      try {
+        const r = await fetch("/api/disponibilidade", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataISO: iso(dt), inicio: semInicio, fim: semFim, slotMin: semDuracao }),
+        });
+        if (r.ok) abertos++;
+      } catch {
+        /* dia já aberto ou falha — segue */
+      }
+    }
+    setAbrindoSemana(false);
+    setMsg(`${abertos} dia(s) abertos (${semInicio}–${semFim}).`);
     carregar();
   }
 
@@ -93,13 +134,13 @@ export default function AdminAgenda() {
     const r = await fetch("/api/disponibilidade", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dataISO: selecionado, inicio: rapidoInicio, fim: rapidoFim }),
+      body: JSON.stringify({ dataISO: selecionado, inicio: rapidoInicio, fim: rapidoFim, slotMin: rapidoDuracao }),
     });
     if (!r.ok) {
       const j = await r.json().catch(() => null);
       return setErro(j?.erro ?? "Falha ao abrir o dia.");
     }
-    setMsg(`Dia ${selecionado} aberto (${rapidoInicio}–${rapidoFim}).`);
+    setMsg(`Dia ${selecionado} aberto (${rapidoInicio}–${rapidoFim}, slots de ${rapidoDuracao}min).`);
     carregar();
   }
 
@@ -221,9 +262,10 @@ export default function AdminAgenda() {
                 <Input rotulo="Início" type="time" value={rapidoInicio} onChange={(e) => setRapidoInicio(e.target.value)} name="rap-inicio" />
                 <Input rotulo="Fim" type="time" value={rapidoFim} onChange={(e) => setRapidoFim(e.target.value)} name="rap-fim" />
               </div>
+              <SeletorDuracao valor={rapidoDuracao} onMudar={setRapidoDuracao} />
               <p className="mt-1 text-xs text-slate-400">
-                → {gerarSlotsDia(rapidoInicio, rapidoFim).length} slot(s) de 1h (
-                {gerarSlotsDia(rapidoInicio, rapidoFim).join(", ") || "—"})
+                → {gerarSlotsDia(rapidoInicio, rapidoFim, rapidoDuracao).length} slot(s) de {rapidoDuracao}min (
+                {gerarSlotsDia(rapidoInicio, rapidoFim, rapidoDuracao).join(", ") || "—"})
               </p>
               <Button onClick={abrirRapido} className="mt-2 w-full">
                 <Plus /> Abrir este dia
@@ -281,7 +323,58 @@ export default function AdminAgenda() {
             <Input rotulo="Início" type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} name="inicio" />
             <Input rotulo="Fim" type="time" value={fim} onChange={(e) => setFim(e.target.value)} name="fim" />
           </div>
+          <SeletorDuracao valor={duracao} onMudar={setDuracao} />
           <Button onClick={adicionarDia}>Abrir este dia</Button>
+        </div>
+      </section>
+
+      {/* Abrir semana toda de uma vez */}
+      <section className="mt-3 rounded-3xl border border-brand-600/40 bg-brand-600/10 p-4">
+        <h2 className="flex items-center gap-1.5 font-extrabold text-white">
+          <CalendarDays className="h-5 w-5" /> Abrir semana toda
+        </h2>
+        <p className="text-xs text-slate-400">Escolhe o horário uma vez e aplica nos dias marcados</p>
+        <div className="mt-3 grid gap-3">
+          <Input rotulo="A partir de" type="date" value={semDe} onChange={(e) => setSemDe(e.target.value)} name="sem-de" />
+          <div>
+            <span className="mb-1.5 block text-sm font-bold text-slate-200">Dias da semana</span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Dias da semana">
+              {[
+                { n: 0, t: "Dom" },
+                { n: 1, t: "Seg" },
+                { n: 2, t: "Ter" },
+                { n: 3, t: "Qua" },
+                { n: 4, t: "Qui" },
+                { n: 5, t: "Sex" },
+                { n: 6, t: "Sáb" },
+              ].map((d) => {
+                const on = semDias.includes(d.n);
+                return (
+                  <button
+                    key={d.n}
+                    onClick={() =>
+                      setSemDias((atual) => (on ? atual.filter((x) => x !== d.n) : [...atual, d.n]))
+                    }
+                    aria-pressed={on}
+                    className={cn(
+                      "min-h-[44px] min-w-[52px] rounded-xl border-2 text-xs font-extrabold",
+                      on ? "border-brand-500 bg-brand-600 text-white" : "border-white/10 text-slate-400"
+                    )}
+                  >
+                    {d.t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input rotulo="Início" type="time" value={semInicio} onChange={(e) => setSemInicio(e.target.value)} name="sem-inicio" />
+            <Input rotulo="Fim" type="time" value={semFim} onChange={(e) => setSemFim(e.target.value)} name="sem-fim" />
+          </div>
+          <SeletorDuracao valor={semDuracao} onMudar={setSemDuracao} />
+          <Button onClick={abrirSemana} disabled={abrindoSemana}>
+            {abrindoSemana ? "Abrindo…" : "Abrir 7 dias"}
+          </Button>
         </div>
       </section>
 
@@ -298,6 +391,30 @@ export default function AdminAgenda() {
           Bloquear período
         </Button>
       </section>
+    </div>
+  );
+}
+
+// Seletor 30min / 1h reutilizado nos 3 formulários de abertura
+function SeletorDuracao({ valor, onMudar }: { valor: 30 | 60; onMudar: (v: 30 | 60) => void }) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-bold text-slate-200">Duração de cada horário</span>
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Duração do horário">
+        {([30, 60] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => onMudar(v)}
+            aria-pressed={valor === v}
+            className={cn(
+              "min-h-[44px] rounded-xl border-2 text-sm font-extrabold",
+              valor === v ? "border-brand-500 bg-brand-600 text-white" : "border-white/10 text-slate-400"
+            )}
+          >
+            {v === 30 ? "30 min" : "1 hora"}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

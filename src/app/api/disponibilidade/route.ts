@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     const { slotConflitaGoogle } = await import("@/lib/google");
 
     const resultado = dias.map((d) => {
-      const horas = gerarSlotsDia(d.inicio, d.fim);
+      const horas = gerarSlotsDia(d.inicio, d.fim, d.slotMin ?? 60);
       return {
         ...d,
         slots: horas.map((hora) => ({
@@ -52,16 +52,18 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/disponibilidade { dataISO, inicio, fim } — "Adicionar dia disponível"
+// POST /api/disponibilidade { dataISO, inicio, fim, slotMin? } — "Adicionar dia disponível"
+// slotMin: 30 ou 60 (padrão 60). Ex: 17:30–19:00 de 30min → 17:30, 18:00, 18:30
 export async function POST(req: Request) {
   try {
-    const { dataISO, inicio, fim } = await req.json();
+    const { dataISO, inicio, fim, slotMin } = await req.json();
     if (!ISO_DATA.test(dataISO ?? "") || !ISO_HORA.test(inicio ?? "") || !ISO_HORA.test(fim ?? ""))
       return NextResponse.json({ erro: "Use data yyyy-mm-dd e horas HH:mm" }, { status: 400 });
-    if (gerarSlotsDia(inicio, fim).length === 0)
+    const passo = slotMin === 30 ? 30 : 60;
+    if (gerarSlotsDia(inicio, fim, passo).length === 0)
       return NextResponse.json({ erro: "Intervalo inválido (fim deve ser após início)" }, { status: 400 });
 
-    const dia = await db.disponibilidade.create({ data: { dataISO, inicio, fim } });
+    const dia = await db.disponibilidade.create({ data: { dataISO, inicio, fim, slotMin: passo } });
     return NextResponse.json(dia, { status: 201 });
   } catch (e: unknown) {
     // dia+hora duplicados
