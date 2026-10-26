@@ -29,6 +29,11 @@ export function montarMensagemAgendamento(a: Agendamento, servicoNome?: string) 
         : "Pagamento: no local",
     "",
     "Pode confirmar? Valeu!",
+    "",
+    "Use estes links para gerenciar seu agendamento:",
+    `Confirmar WhatsApp: https://seu-dominio.vercel.app/api/agendamentos/confirmar-whatsapp?token=${a.tokenAcesso}`,
+    `Cancelar: https://seu-dominio.vercel.app/cancelar?token=${a.tokenAcesso}`,
+    `Remarcar: https://seu-dominio.vercel.app/cancelar?token=${a.tokenAcesso}`,
   ];
   return linhas.join("\n");
 }

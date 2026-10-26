@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { CalendarCheck, Gift, Camera, MessageCircle, BellRing } from "lucide-react";
+import { CalendarCheck, Gift, Camera, MessageCircle, BellRing, Tags } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,8 @@ function Conteudo() {
   });
   const [fid, setFid] = useState({ fidelidadeAtiva: true, cortesParaGratis: 10, instagramUrl: "", mensagemWhats: "" });
   const [msgFid, setMsgFid] = useState("");
+  const [carregandoMP, setCarregandoMP] = useState(false);
+  const [mpConfigurado, setMpConfigurado] = useState(false);
 
   useEffect(() => {
     fetch("/api/google/status", { cache: "no-store" })
@@ -37,6 +39,7 @@ function Conteudo() {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => j && setFid({ fidelidadeAtiva: j.fidelidadeAtiva, cortesParaGratis: j.cortesParaGratis, instagramUrl: j.instagramUrl ?? "", mensagemWhats: j.mensagemWhats ?? "" }))
       .catch(() => null);
+    verificarMercadoPago();
   }, []);
 
   async function salvarFid(manual?: { fidelidadeAtiva: boolean; cortesParaGratis: number; instagramUrl: string; mensagemWhats: string }) {
@@ -48,6 +51,19 @@ function Conteudo() {
     });
     setMsgFid(r.ok ? "Salvo!" : "Sem permissão (só dono).");
     setTimeout(() => setMsgFid(""), 2500);
+  }
+
+  async function verificarMercadoPago() {
+    setCarregandoMP(true);
+    try {
+      const r = await fetch("/api/config/mercadopago", { cache: "no-store" });
+      const j = await r.json();
+      setMpConfigurado(j.configurado ?? false);
+    } catch {
+      setMpConfigurado(false);
+    } finally {
+      setCarregandoMP(false);
+    }
   }
 
   const retorno = params.get("google");
@@ -224,6 +240,54 @@ function Conteudo() {
           </Button>
         </div>
       </section>
+
+      {/* Mercado Pago / PIX */}
+      <section className="mt-3 rounded-3xl border-2 border-dashed border-accent/40 bg-red-500/5 p-4">
+        <h2 className="flex items-center gap-1.5 font-extrabold text-white">
+          <Tags className="h-5 w-5" /> Pagamentos e Mercado Pago (PIX)
+        </h2>
+        <p className="mt-2 text-sm text-slate-400">
+          Configure as credenciais da sua conta Mercado Pago para ativar o PIX como forma de
+          pagamento antecipado no site.
+        </p>
+
+        <div className="mt-3 space-y-3">
+          <button
+            onClick={verificarMercadoPago}
+            disabled={carregandoMP}
+            className="flex w-full items-center justify-between rounded-xl border-2 border-white/10 bg-white/5 px-4 py-3 text-left transition-all hover:bg-white/10"
+          >
+            <span className="text-sm font-bold text-white">
+              Verificar configuração do Mercado Pago
+            </span>
+            <span className="text-xs text-slate-400">
+              {carregandoMP ? "Verificando…" : mpConfigurado ? "Configurado ✓" : "Não configurado"}
+            </span>
+          </button>
+
+          {mpConfigurado ? (
+            <p className="mt-2 rounded-xl bg-green-500/15 p-3 text-sm font-semibold text-green-300">
+              ✅ O Mercado Pago está configurado. O PIX estará disponível para os clientes.
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 rounded-xl bg-yellow-500/15 p-3 text-sm font-semibold text-yellow-300">
+                ⚠️ Mercado Pago não configurado. O PIX está indisponível para os clientes.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Para ativar, adicione a variável <code className="text-slate-200">MERCADOPAGO_ACCESS_TOKEN</code>
+                nas Environment Variables do seu projeto na Vercel, com o token da sua conta Mercado Pago.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                O token não é salvo neste painel — ele fica apenas nas variáveis de ambiente do servidor,
+                protegido e não exposto ao navegador.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
+
+

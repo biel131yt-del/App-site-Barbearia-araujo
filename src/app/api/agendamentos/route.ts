@@ -1,4 +1,5 @@
-﻿import { NextResponse } from "next/server";
+﻿import { randomUUID } from "crypto";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { normalizarNome, telefoneCanonico } from "@/lib/cliente";
@@ -6,8 +7,15 @@ import { db } from "@/lib/db";
 import { gerarSlotsDia } from "@/lib/slots";
 
 // GET /api/agendamentos?dataISO=2026-10-26 — lista do dia (dashboard FASE 4)
-// Sem filtro retorna tudo (até 1000) p/ faturamento/relatórios do painel.
+// Requer login. Retorna apenas os dados necessários para o papel do usuário.
+// super_admin/admin: dados completos | barbeiro: dados completos de agenda/clientes
+// Público (sem login): NÃO retorna lista completa — só disponibilidade via /api/disponibilidade.
 export async function GET(req: Request) {
+  const sess = await getServerSession(authOptions);
+  if (!sess) {
+    return NextResponse.json({ erro: "Login necessário" }, { status: 401 });
+  }
+  const papel = (sess?.user as { papel?: string } | undefined)?.papel;
   const { searchParams } = new URL(req.url);
   const dataISO = searchParams.get("dataISO");
   try {
@@ -17,7 +25,11 @@ export async function GET(req: Request) {
       orderBy: [{ dataISO: "asc" }, { hora: "asc" }],
       take: 1000,
     });
-    return NextResponse.json(lista);
+    // Minimização de dados: barbeiro não precisa ver telefone do cliente
+    const filtrada = papel === "barbeiro"
+      ? lista.map((a) => ({ ...a, cliente: { nome: a.cliente.nome, telefone: null } }))
+      : lista;
+    return NextResponse.json(filtrada);
   } catch (e) {
     console.error("[api/agendamentos GET]", e);
     return NextResponse.json({ erro: "Falha ao listar agendamentos" }, { status: 500 });
@@ -36,6 +48,8 @@ export async function PATCH(req: Request) {
     const atual = await db.agendamento.findUnique({ where: { id } });
     if (!atual) return NextResponse.json({ erro: "Não encontrado" }, { status: 404 });
 
+    const papel = (sess?.user as { papel?: string } | undefined)?.papel;
+
     // Sem login (cliente no checkout): só pode desistir do PIX pendente → pagar no local
     if (!sess) {
       if (pagamento === "local" && atual.status === "aguardando") {
@@ -49,10 +63,60 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ erro: "Login necessário" }, { status: 401 });
     }
 
+    // Barbeiro só pode marcar como concluído/cancelado em agendamentos próprios (não implementado
+    // rastreamento de barbeiro no agendamento, então barbeiro pode editar status mas não dados
+    // financeiros sensíveis). Admin/super_admin têm acesso total.
+    const ehDonoOuAdmin = ["super_admin", "admin"].includes(papel ?? "");
+
     const dados: { pagamento?: string; status?: string; dataISO?: string; hora?: string } = {};
-    if (pagamento === "pix" || pagamento === "local") dados.pagamento = pagamento;
-    if (["confirmado", "aguardando", "pago", "pendente", "cancelado", "concluido"].includes(status))
+
+    // Validação de transição de status
+    const TRANSICOES_VALIDAS: Record<string, string[]> = {
+      aguardando: ["confirmado", "cancelado", "pago"],
+      confirmado: ["concluido", "cancelado", "aguardando", "pago"],
+      pago: ["concluido", "cancelado"],
+      pendente: ["confirmado", "cancelado", "pago"],
+      concluido: [], // não muda mais
+      cancelado: [], // não reativa via PATCH comum
+    };
+
+    if (status && status !== atual.status) {
+      if (!ehDonoOuAdmin)
+        return NextResponse.json({ erro: "Sem permissão para alterar status" }, { status: 403 });
+      const destinoPermitido = TRANSICOES_VALIDAS[atual.status] ?? [];
+      if (!destinoPermitido.includes(status)) {
+        return NextResponse.json(
+          { erro: `Não é possível alterar de "${atual.status}" para "${status}"` },
+          { status: 400 }
+        );
+      }
       dados.status = status;
+    }
+
+    if (pagamento === "pix" || pagamento === "local") {
+      if (!ehDonoOuAdmin)
+        return NextResponse.json({ erro: "Sem permissão para alterar pagamento" }, { status: 403 });
+      dados.pagamento = pagamento;
+    }
+
+    if (dataISO || hora) {
+      if (!ehDonoOuAdmin)
+        return NextResponse.json({ erro: "Sem permissão para remanejar horário" }, { status: 403 });
+      const dISO = typeof dataISO === "string" && dataISO !== atual.dataISO ? dataISO : atual.dataISO;
+      const h = typeof hora === "string" && hora !== atual.hora ? hora : atual.hora;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dISO) || !/^\d{2}:\d{2}$/.test(h))
+        return NextResponse.json({ erro: "Data/hora inválidas" }, { status: 400 });
+      const dias = await db.disponibilidade.findMany({ where: { dataISO: dISO } });
+      if (dias.length === 0 || !dias.some((d) => gerarSlotsDia(d.inicio, d.fim, d.slotMin ?? 60).includes(h)))
+        return NextResponse.json({ erro: "Novo horário fora do expediente" }, { status: 409 });
+      const ocupado = await db.agendamento.findUnique({ where: { dataISO_hora: { dataISO: dISO, hora: h } } });
+      if (ocupado && ocupado.id !== id && ocupado.status !== "cancelado")
+        return NextResponse.json({ erro: "Novo horário já ocupado" }, { status: 409 });
+      if (ocupado && ocupado.id !== id)
+        await db.agendamento.delete({ where: { id: ocupado.id } }); // limpa cancelado
+      dados.dataISO = dISO;
+      dados.hora = h;
+    }
 
     // Remanejar: valida novo dia/hora como numa reserva nova
     const novaData = typeof dataISO === "string" && dataISO !== atual.dataISO ? dataISO : null;
@@ -149,8 +213,17 @@ export async function POST(req: Request) {
       cliente = await db.cliente.create({ data: { nome: nomeOk, telefone: tel } });
     }
 
+    const tokenAcesso = randomUUID();
     const ag = await db.agendamento.create({
-      data: { dataISO, hora, pagamento: pag, trocoPara: troco, servicoId: servico.id, clienteId: cliente.id },
+      data: {
+        dataISO,
+        hora,
+        pagamento: pag,
+        trocoPara: troco,
+        servicoId: servico.id,
+        clienteId: cliente.id,
+        tokenAcesso,
+      },
       include: { servico: true, cliente: true },
     });
 

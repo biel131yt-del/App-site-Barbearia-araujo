@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Banknote, CalendarCheck, Check, Clock, QrCode, TrendingUp, Users, X } from "lucide-react";
+import { Banknote, CalendarCheck, Check, Clock, QrCode, Star as StarIcon, TrendingUp, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/barber-icons";
 import { useMensagemWhats } from "@/components/use-mensagem-whats";
@@ -19,15 +19,40 @@ import {
 } from "@/lib/admin";
 import { cn } from "@/lib/utils";
 
-// Dashboard do dono — hoje, faturamento, próximos + status das notificações.
+// Dashboard do dono — hoje, faturamento, próximos + avaliações e lista de espera.
 export default function AdminDashboard() {
   const [ags, setAgs] = useState<AgendamentoAdmin[]>([]);
+  const [avaliacoes, setAvaliacoes] = useState<AvaliacaoResumo[]>([]);
+  const [listaEsperaPendente, setListaEsperaPendente] = useState<ListaEsperaResumo[]>([]);
+
+type AvaliacaoResumo = {
+  id: string;
+  nota: number;
+  agendamento: {
+    cliente: { nome: string };
+    servico: { nome: string };
+    dataISO: string;
+  };
+};
+
+type ListaEsperaResumo = {
+  id: string;
+  nome: string;
+  dataISO: string;
+  horaPreferida: string | null;
+  servico: { nome: string };
+  criadoEm: string;
+};
   const [erro, setErro] = useState("");
 
   async function recarregar() {
     try {
       const r = await fetch("/api/agendamentos", { cache: "no-store" });
       if (r.ok) setAgs(await r.json());
+      const ra = await fetch("/api/avaliacoes?todos=1", { cache: "no-store" });
+      if (ra.ok) setAvaliacoes(await ra.json());
+      const rl = await fetch("/api/lista-espera?atendido=0", { cache: "no-store" });
+      if (rl.ok) setListaEsperaPendente(await rl.json());
     } catch {
       /* mantém */
     }
@@ -38,6 +63,14 @@ export default function AdminDashboard() {
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setAgs)
       .catch(() => setErro("Não foi possível carregar os dados."));
+    fetch("/api/avaliacoes?todos=1", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setAvaliacoes)
+      .catch(() => null);
+    fetch("/api/lista-espera?atendido=0", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setListaEsperaPendente)
+      .catch(() => null);
   }, []);
 
   const hoje = hojeISO();
@@ -67,6 +100,11 @@ export default function AdminDashboard() {
     .filter((a) => a.dataISO >= hoje && a.status !== "cancelado")
     .sort((a, b) => (a.dataISO + a.hora).localeCompare(b.dataISO + b.hora))
     .slice(0, 5);
+
+  const notaMedia =
+    avaliacoes.length > 0
+      ? Math.round((avaliacoes.reduce((s, a) => s + a.nota, 0) / avaliacoes.length) * 10) / 10
+      : 0;
 
   return (
     <div>
@@ -136,6 +174,89 @@ export default function AdminDashboard() {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Avaliações recentes */}
+      <section className="mt-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-display text-2xl tracking-wide text-white">
+            AVALIAÇÕES RECENTES
+          </h2>
+          <span className="flex items-center gap-1 text-xs font-bold text-slate-400">
+            Média {avaliacoes.length > 0 ? notaMedia.toFixed(1) : "—"} / 5
+          </span>
+        </div>
+        <div className="mt-2 grid gap-2.5">
+          {avaliacoes.length > 0 ? (
+            avaliacoes.map((a) => (
+              <div
+                key={a.id}
+                className="rounded-xl border border-white/10 bg-white/5 p-3 flex items-center justify-between"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-white">
+                    {a.agendamento?.cliente?.nome ?? "Cliente"}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {a.agendamento?.servico?.nome ?? ""} •
+                    {formatarDataBR(a.agendamento?.dataISO ?? "")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-amber-400 text-sm">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <StarIcon
+                      key={n}
+                      className={cn("h-4 w-4", n <= a.nota ? "fill-yellow-400" : "text-slate-500")}
+                    />
+                  ))}
+                  <span className="ml-1 text-xs font-bold text-white">{a.nota}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
+              Nenhuma avaliação ainda.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Lista de espera pendente */}
+      <section className="mt-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-display text-2xl tracking-wide text-white">
+            LISTA DE ESPERA PENDENTE
+          </h2>
+          <span className="text-xs font-bold text-slate-400">
+            {listaEsperaPendente.length} cliente(s)
+          </span>
+        </div>
+        <div className="mt-2 grid gap-2.5">
+          {listaEsperaPendente.length > 0 ? (
+            listaEsperaPendente.map((a) => (
+              <div
+                key={a.id}
+                className="rounded-xl border border-white/10 bg-white/5 p-3 flex items-center justify-between"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-white">{a.nome}</span>
+                  <span className="text-xs text-slate-400">
+                    {a.servico?.nome ?? ""} • {formatarDataBR(a.dataISO)}
+                    {a.horaPreferida ? ` • ${a.horaPreferida}` : ""}
+                  </span>
+                </div>
+                <span className="text-xs font-bold text-yellow-300">
+                  Aguardando desde{" "}
+                  {new Date(a.criadoEm).toLocaleDateString("pt-BR")}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
+              Nenhum cliente na lista de espera.
+            </p>
+          )}
+        </div>
       </section>
     </div>
   );

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { telefoneCanonico } from "@/lib/cliente";
 import { db } from "@/db";
 import { gerarSlotsDia } from "@/lib/slots";
 
@@ -7,25 +6,20 @@ const ISO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_HORA = /^\d{2}:\d{2}$/;
 
 // PATCH público /api/agendamentos/remarcar
-// Body: { telefone, dataISO, hora, novaData, novaHora }
-// Remarca um agendamento do cliente (sem login). Valida que o novo horário está aberto e livre.
+// Body: { tokenAcesso, novaData, novaHora }
+// Remarca um agendamento do cliente usando o token de acesso enviado por WhatsApp.
 export async function PATCH(req: Request) {
   try {
-    const { telefone, dataISO, hora, novaData, novaHora } = await req.json();
-    const tel = telefoneCanonico(telefone ?? "");
-    if (!tel || tel.length < 10)
-      return NextResponse.json({ erro: "WhatsApp com DDD é obrigatório" }, { status: 400 });
-    if (!dataISO || !hora || !novaData || !novaHora)
-      return NextResponse.json({ erro: "Informe data/hora atual e nova data/hora" }, { status: 400 });
+    const { tokenAcesso, novaData, novaHora } = await req.json();
+    if (!tokenAcesso)
+      return NextResponse.json({ erro: "Token de acesso é obrigatório" }, { status: 400 });
+    if (!novaData || !novaHora)
+      return NextResponse.json({ erro: "Informe nova data e horário" }, { status: 400 });
     if (!ISO_DATA.test(novaData) || !ISO_HORA.test(novaHora))
       return NextResponse.json({ erro: "Use data yyyy-mm-dd e hora HH:mm" }, { status: 400 });
 
-    const cliente = await db.cliente.findUnique({ where: { telefone: tel } });
-    if (!cliente)
-      return NextResponse.json({ erro: "Cliente não encontrado" }, { status: 404 });
-
     const ag = await db.agendamento.findFirst({
-      where: { clienteId: cliente.id, dataISO, hora, status: { not: "cancelado" } },
+      where: { tokenAcesso, status: { not: "cancelado" } },
     });
     if (!ag)
       return NextResponse.json({ erro: "Agendamento não encontrado ou já cancelado" }, { status: 404 });

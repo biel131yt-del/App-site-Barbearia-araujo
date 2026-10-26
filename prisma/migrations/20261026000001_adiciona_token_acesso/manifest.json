@@ -1,0 +1,15 @@
+{
+  "migrationName": "adiciona_token_acesso",
+  "datamodelSteps": [
+    {
+      "type": "AddField",
+      "dbName": "Agendamento",
+      "field": { "name": "tokenAcesso", "type": "String?", "isNullable": true, "isUnique": true }
+    },
+    {
+      "type": "CreateIndex",
+      "dbName": "Agendamento",
+      "fields": ["tokenAcesso"]
+    }
+  ]
+}

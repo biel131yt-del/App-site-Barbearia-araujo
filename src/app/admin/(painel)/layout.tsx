@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
-import { CalendarDays, LayoutDashboard, Settings, Users, Wallet, Tags, Scissors, type LucideIcon } from "lucide-react";
+import { CalendarDays, Clock, LayoutDashboard, Settings, Star, Users, Wallet, Tags, Scissors, type LucideIcon } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { podeAcessar } from "@/lib/permissoes";
 import { BotaoSair } from "@/components/BotaoSair";
@@ -17,6 +17,8 @@ const ICONES: Record<string, LucideIcon> = {
   caixa: Wallet,
   servicos: Tags,
   equipe: Users,
+  avaliacoes: Star,
+  listaEspera: Clock,
   ajustes: Settings,
 };
 
@@ -26,6 +28,8 @@ const ITENS = [
   { href: "/admin/clientes", rotulo: "Clientes", icone: "clientes" },
   { href: "/admin/caixa", rotulo: "Caixa", icone: "caixa" },
   { href: "/admin/servicos", rotulo: "Serviços", icone: "servicos" },
+  { href: "/admin/avaliacoes", rotulo: "Avaliações", icone: "clientes" },
+  { href: "/admin/lista-espera", rotulo: "Lista de Espera", icone: "clientes" },
   { href: "/admin/equipe", rotulo: "Equipe", icone: "equipe" },
   { href: "/admin/config", rotulo: "Ajustes", icone: "ajustes" },
 ] as const;

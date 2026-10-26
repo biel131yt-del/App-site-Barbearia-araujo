@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserPlus } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UserPlus } from "lucide-react";
 import { ROTULOS_PAPEL, type Papel } from "@/lib/permissoes";
 
 // Equipe — só o dono vê (API + middleware barram o resto).

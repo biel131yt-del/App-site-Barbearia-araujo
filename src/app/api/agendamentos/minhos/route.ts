@@ -2,17 +2,35 @@ import { NextResponse } from "next/server";
 import { telefoneCanonico } from "@/lib/cliente";
 import { db } from "@/db";
 
-// GET /api/agendamentos/minhos?telefone=555196824286
-// Lista agendamentos ativos (não cancelados) de um cliente pelo WhatsApp.
-// Público (sem login) — só serve p/ o próprio cliente gerenciar seus horários.
+// GET /api/agendamentos/minhos?token=... ou ?telefone=...
+// Lista agendamentos ativos (não cancelados) de um cliente.
+// Pode ser consultado por token de acesso (mais seguro) ou por telefone.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const telefone = telefoneCanonico(searchParams.get("telefone") ?? "");
-  if (telefone.length < 10) {
-    return NextResponse.json({ agendamentos: [] });
-  }
+  const token = searchParams.get("token") ?? "";
+  const telefoneRaw = searchParams.get("telefone") ?? "";
 
   try {
+    // Prioridade 1: busca por token (mais seguro)
+    if (token.trim()) {
+      const ags = await db.agendamento.findMany({
+        where: {
+          tokenAcesso: token.trim(),
+          status: { not: "cancelado" },
+        },
+        include: { servico: true, cliente: true },
+        orderBy: [{ dataISO: "asc" }, { hora: "asc" }],
+        take: 50,
+      });
+      return NextResponse.json({ agendamentos: ags });
+    }
+
+    // Prioridade 2: busca por telefone (compatibilidade)
+    const telefone = telefoneCanonico(telefoneRaw);
+    if (telefone.length < 10) {
+      return NextResponse.json({ agendamentos: [] });
+    }
+
     const cliente = await db.cliente.findUnique({ where: { telefone } });
     if (!cliente) return NextResponse.json({ agendamentos: [] });
 

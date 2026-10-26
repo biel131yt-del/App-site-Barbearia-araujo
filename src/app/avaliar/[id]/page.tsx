@@ -5,7 +5,6 @@ import { ChevronLeft, Star, CheckCircle2, Send } from "lucide-react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { FundoBarbearia } from "@/components/marca";
 import { cn } from "@/lib/utils";
 

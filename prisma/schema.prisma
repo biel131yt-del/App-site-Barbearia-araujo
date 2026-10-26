@@ -77,6 +77,10 @@ model Agendamento {
   // Confirmação via WhatsApp (obrigatória para o barbeiro)
   confirmadoWhatsApp Boolean @default(false) // cliente já enviou a confirmação no WhatsApp?
 
+  // Token de acesso para operações públicas do cliente (cancelar, remarcar, confirmar WhatsApp)
+  // Gerado automaticamente ao criar o agendamento. Enviado por WhatsApp ao cliente.
+  tokenAcesso String? @unique
+
   // Cancelamento pelo cliente
   motivoCancelamento String? // por que desistiu
   canceladoEm        DateTime? // quando cancelou

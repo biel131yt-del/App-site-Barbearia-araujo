@@ -15,14 +15,14 @@ export default function AdminClientes() {
   >([]);
   const [erro, setErro] = useState("");
 
-  async function carregar() {
+  const carregar = async () => {
     const r = await fetch("/api/clientes?todos=1");
     if (r.ok) setLista(await r.json());
     else setErro("Falha ao carregar clientes.");
-  }
+  };
   useEffect(() => {
-    carregar();
-  }, []);
+    void carregar();
+  }, [carregar]);
 
   async function resetar(telefone: string, nome: string) {
     if (!window.confirm(`Zerar a contagem de ${nome}? O histórico continua, só a fidelidade recomeça.`)) return;

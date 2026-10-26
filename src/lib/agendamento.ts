@@ -23,6 +23,7 @@ export type Agendamento = {
   pagamento: Pagamento;
   trocoPara?: string | null;
   criadoEm: string;
+  tokenAcesso?: string | null;
 };
 
 // ── datas ─────────────────────────────────────────

@@ -121,7 +121,7 @@ export function BotaoPush() {
             Abra o <strong>ícone do app</strong> que apareceu na tela inicial.
           </li>
           <li className="text-xs">
-            Volte nesta tela e toque em <strong>"Ativar notificações"</strong> abaixo.
+            Volte nesta tela e toque em <strong>&quot;Ativar notificações&quot;</strong> abaixo.
           </li>
         </ol>
 

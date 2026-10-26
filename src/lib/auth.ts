@@ -6,8 +6,55 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 }, // 30 dias
   pages: { signIn: "/admin/login" },
+  cookies: {
+    sessionToken: {
+      name: `nextauth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
+      },
+    },
+    callbackUrl: {
+      name: `nextauth.callback-url`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
+      },
+    },
+    csrfToken: {
+      name: `nextauth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
+      },
+    },
+    state: {
+      name: `nextauth.state`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
+      },
+    },
+    nonce: {
+      name: `nextauth.nonce`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
+      },
+    },
+  },
   providers: [
     CredentialsProvider({
       name: "Painel",
