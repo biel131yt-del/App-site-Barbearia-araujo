@@ -83,19 +83,51 @@ export function BotaoPush() {
   if (estado === "verificando") return <p className="mt-2 text-sm text-slate-400">Verificando…</p>;
   if (estado === "sem-suporte") {
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isIOS = ios || (/Macintosh/.test(navigator.userAgent) && "ontouchend" in document);
+    const iosVersion = isIOS
+      ? (navigator.userAgent.match(/OS (\d+)_(\d+)_?(\d+)? like Mac OS X/) ?? [])?.[1]
+      : null;
+    const iosOk = iosVersion ? Number(iosVersion) >= 16 : false;
+
     return (
-      <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-relaxed text-slate-300">
-        {ios ? (
+      <div className="mt-3 rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 text-sm leading-relaxed">
+        <p className="font-bold text-amber-300 mb-3">
+          📱 Notificações no iPhone
+        </p>
+
+        {isIOS && !iosOk ? (
           <>
-            <p className="font-bold text-white">No iPhone, ative assim:</p>
-            <p className="mt-1">1. Abra este site no <strong>SAFARI</strong> (não pelo WhatsApp/Instagram/Chrome)</p>
-            <p>2. Toque <strong>Compartilhar → Adicionar à Tela de Início</strong></p>
-            <p>3. Abra o <strong>app instalado</strong>, entre e volte aqui para ativar</p>
-            <p className="mt-1 text-slate-500">Exige iOS 16.4 ou mais novo.</p>
+            <p className="text-amber-100 mb-2">
+              Seu iOS ({iosVersion}) é antigo. Web Push exige <strong>iOS 16.4 ou mais novo</strong>.
+            </p>
+            <p className="text-xs text-amber-200 mb-3">
+              Atualize o iPhone em Ajustes → Geral → Atualização de Software.
+            </p>
           </>
-        ) : (
-          <p>Abra no Chrome/Edge/Safari atualizado (navegador interno de WhatsApp/Instagram não suporta).</p>
-        )}
+        ) : null}
+
+        <p className="text-amber-100 mb-3">
+          Para receber notificações no iPhone, siga estes passos:
+        </p>
+
+        <ol className="list-decimal list-inside text-amber-100 mb-3 space-y-1">
+          <li className="text-xs">
+            Abra o site no <strong>Safari</strong> (não no WhatsApp, Instagram, Facebook ou Chrome).
+          </li>
+          <li className="text-xs">
+            Toque em <strong>Compartilhar → Adicionar à Tela de Início</strong>.
+          </li>
+          <li className="text-xs">
+            Abra o <strong>ícone do app</strong> que apareceu na tela inicial.
+          </li>
+          <li className="text-xs">
+            Volte nesta tela e toque em <strong>"Ativar notificações"</strong> abaixo.
+          </li>
+        </ol>
+
+        <p className="text-xs text-amber-200 italic">
+          Após instalar como PWA, as notificações chegam mesmo com o app fechado.
+        </p>
       </div>
     );
   }

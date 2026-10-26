@@ -29,10 +29,19 @@ function Form() {
     setErro("");
     if (!login.trim() || !senha) return setErro("Digite login e senha.");
     setCarregando(true);
-    const r = await signIn("credentials", { login: login.trim().toLowerCase(), senha, redirect: false });
-    setCarregando(false);
-    if (r?.error) return setErro("Login ou senha inválidos.");
-    router.push(params.get("callbackUrl") ?? "/admin");
+    try {
+      const r = await signIn("credentials", {
+        login: login.trim().toLowerCase(),
+        senha,
+        redirect: false,
+      });
+      if (r?.error) return setErro("Login ou senha inválidos.");
+      router.push(params.get("callbackUrl") ?? "/admin");
+    } catch {
+      setErro("Erro ao conectar. Tente novamente.");
+    } finally {
+      setCarregando(false);
+    }
   }
 
   return (

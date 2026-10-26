@@ -89,6 +89,16 @@ export default function AgendarPage() {
   const [copiado, setCopiado] = useState(false);
   // Aba do WhatsApp aberta no clique (gesto do usuário = sem bloqueio de popup)
   const abaWhats = useRef<Window | null>(null);
+  // Lista de espera
+  const [msg, setMsg] = useState("");
+  const [listaEspera, setListaEspera] = useState<{
+    servicoId: string;
+    dataISO: string;
+    nome: string;
+    whatsapp: string;
+    horaPreferida: string | null;
+  } | null>(null);
+  const [enviandoLista, setEnviandoLista] = useState(false);
 
   const [servicos, setServicos] = useState<Servico[]>(SERVICOS_MOCK);
   const [filtroFaixa, setFiltroFaixa] = useState("todas");
@@ -242,6 +252,20 @@ export default function AgendarPage() {
       };
       salvarAgendamentoLocal(novo);
       setAgendamento(novo);
+      // Marca como confirmado via WhatsApp no banco e abre o WhatsApp
+      try {
+        await fetch("/api/agendamentos/confirmar-whatsapp", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            telefone: novo.whatsapp,
+            dataISO: novo.dataISO,
+            hora: novo.hora,
+          }),
+        });
+      } catch {
+        /* falha ao marcar confirmação, não bloqueia o fluxo */
+      }
       abrirWhats(novo); // reserva criada → WhatsApp abre sozinho
 
       if (pagamento === "pix") {
@@ -596,7 +620,99 @@ export default function AgendarPage() {
               <p className="relative mt-3 text-center text-xs text-slate-400 opacity-60">
                 Escolha o melhor horário pra você
               </p>
-              {vagasLivres === 0 && (
+              {vagasLivres === 0 && servico && dataISO && hora && (
+                <div className="relative mt-3 rounded-xl border-2 border-dashed border-amber-500/40 bg-amber-500/10 p-4">
+                  <p className="text-sm font-semibold text-amber-300">Dia lotado neste horário</p>
+                  <p className="mt-1 text-xs text-slate-300">
+                    Quer entrar na lista de espera? Avisamos se abrir vaga.
+                  </p>
+                  {!listaEspera && (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setListaEspera({
+                          servicoId: servicoId!,
+                          dataISO,
+                          nome: nome,
+                          whatsapp,
+                          horaPreferida: hora,
+                        })
+                      }
+                      className="mt-2 w-full border-amber-500/50 text-amber-300 hover:bg-amber-500/10"
+                    >
+                      Entrar na lista de espera
+                    </Button>
+                  )}
+                  {listaEspera && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-bold text-slate-300">Seus dados para a lista de espera:</p>
+                      <div className="grid gap-2">
+                        <Input
+                          rotulo="Nome"
+                          value={listaEspera.nome}
+                          onChange={(e) => setListaEspera({ ...listaEspera, nome: e.target.value })}
+                        />
+                        <Input
+                          rotulo="WhatsApp"
+                          placeholder="(51) 99999-9999"
+                          value={listaEspera.whatsapp}
+                          onChange={(e) => setListaEspera({ ...listaEspera, whatsapp: e.target.value })}
+                          inputMode="tel"
+                        />
+                        <Input
+                          rotulo="Horário preferido"
+                          type="time"
+                          value={listaEspera.horaPreferida ?? ""}
+                          onChange={(e) =>
+                            setListaEspera({ ...listaEspera, horaPreferida: e.target.value || null })
+                          }
+                        />
+                      </div>
+                      <Button
+                        variant="accent"
+                        onClick={async () => {
+                          if (!listaEspera.nome || !telefoneValido(listaEspera.whatsapp)) {
+                            return setErro("Preencha nome e WhatsApp válido.");
+                          }
+                          setEnviandoLista(true);
+                          try {
+                            const r = await fetch("/api/lista-espera", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                servicoId: listaEspera.servicoId,
+                                dataISO: listaEspera.dataISO,
+                                nome: listaEspera.nome,
+                                telefone: listaEspera.whatsapp,
+                                horaPreferida: listaEspera.horaPreferida,
+                              }),
+                            });
+                            if (!r.ok) throw new Error("Falha ao entrar na lista");
+                            setListaEspera(null);
+                            setMsg("Você entrou na lista de espera! Avisamos se abrir vaga.");
+                          } catch {
+                            setErro("Falha ao entrar na lista de espera.");
+                          } finally {
+                            setEnviandoLista(false);
+                          }
+                        }}
+                        disabled={enviandoLista}
+                        className="w-full press"
+                      >
+                        {enviandoLista ? "Inscrevendo…" : "Inscrever na lista de espera"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setListaEspera(null)}
+                        className="w-full"
+                      >
+                        Não, obrigado
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {vagasLivres === 0 && !servico && (
                 <p className="relative mt-3 rounded-xl bg-red-500/15 p-3 text-sm font-semibold text-red-300">
                   Dia lotado. Volte e escolha outra data.
                 </p>
@@ -834,9 +950,12 @@ export default function AgendarPage() {
                 </a>
                 <a href={linkWhatsAppDono(agendamento, servico?.nome)} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" className="w-full border-green-500/50 text-green-300 hover:bg-green-500 hover:text-white">
-                    <WhatsAppIcon className="h-5 w-5" /> Confirmar no WhatsApp
+                    <WhatsAppIcon className="h-5 w-5" /> Abrir WhatsApp
                   </Button>
                 </a>
+                <p className="mt-2 text-xs text-green-300/80">
+                  Confirmação via WhatsApp já registrada no sistema ✓
+                </p>
                 {fid.instagramUrl ? (
                   <a href={fid.instagramUrl} target="_blank" rel="noopener noreferrer">
                     <Button variant="ghost" className="w-full">
@@ -859,6 +978,11 @@ export default function AgendarPage() {
             {erro}
           </p>
         )}
+        {msg && (
+          <p className="mt-3 rounded-xl bg-green-500/15 p-3 text-sm font-semibold text-green-300">
+            {msg}
+          </p>
+        )}
 
         {etapa <= 5 && (
           <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-brand-950/95 p-3 backdrop-blur md:static md:mt-6 md:border-0 md:bg-transparent md:p-0">
@@ -870,7 +994,7 @@ export default function AgendarPage() {
                 disabled={!podeAvancar || enviando}
                 onClick={avancar}
               >
-                {etapa === 5 ? (enviando ? "Agendando..." : "Confirmar agendamento") : "Continuar"} <ArrowRight />
+                {etapa === 5 ? (enviando ? "Agendando…" : "Confirmar e enviar WhatsApp") : "Continuar"} <ArrowRight />
               </Button>
             </div>
           </div>

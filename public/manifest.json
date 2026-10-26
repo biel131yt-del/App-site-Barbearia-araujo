@@ -2,6 +2,7 @@
   "name": "Barbearia Araujo",
   "short_name": "Araujo",
   "description": "Agende seu corte na Barbearia Araujo — rápido, fácil e pelo celular.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

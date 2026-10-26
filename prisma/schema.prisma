@@ -1,4 +1,4 @@
-// Schema Prisma — FASE 3 (SQLite local, 100% grátis, nunca desativa)
+// Schema Prisma — FASE 3 (PostgreSQL p/ produção na Vercel)
 // Migra p/ Postgres/Supabase depois trocando provider + DATABASE_URL.
 // Comente em português para manutenção do dono.
 
@@ -24,7 +24,8 @@ model Servico {
   ativo       Boolean  @default(true)
   criadoEm    DateTime @default(now())
 
-  agendamentos Agendamento[]
+  agendamentos   Agendamento[]
+  listaEspera    ListaEspera[]
 }
 
 // Cliente identificado pelo WhatsApp/telefone (único)
@@ -73,10 +74,18 @@ model Agendamento {
   googleStatus   String @default("pendente") // criado | desligado | falha
   emailStatus    String @default("pendente") // enviado | desligado | falha
 
+  // Confirmação via WhatsApp (obrigatória para o barbeiro)
+  confirmadoWhatsApp Boolean @default(false) // cliente já enviou a confirmação no WhatsApp?
+
+  // Cancelamento pelo cliente
+  motivoCancelamento String? // por que desistiu
+  canceladoEm        DateTime? // quando cancelou
+
   servicoId String
   servico   Servico @relation(fields: [servicoId], references: [id])
   clienteId String
   cliente   Cliente @relation(fields: [clienteId], references: [id])
+  avaliacao Avaliacao?
 
   criadoEm DateTime @default(now())
 
@@ -84,6 +93,34 @@ model Agendamento {
   @@unique([dataISO, hora])
   @@index([dataISO])
   @@index([clienteId])
+}
+
+// Avaliação do cliente após o corte (FASE nova)
+model Avaliacao {
+  id           String   @id @default(cuid())
+  agendamentoId String  @unique // uma avaliação por agendamento
+  nota         Int      // 1 a 5 estrelas
+  comentario   String?  // depoimento livre
+  criadoEm     DateTime @default(now())
+
+  agendamento Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+}
+
+// Lista de espera — cliente quer um horário lotado (FASE nova)
+model ListaEspera {
+  id        String   @id @default(cuid())
+  servicoId String   // qual serviço deseja
+  dataISO   String   // yyyy-mm-dd — dia que quer
+  nome      String
+  telefone  String   // só dígitos, ex: 555196824286
+  horaPreferida String? // HH:mm — horário que preferia (opcional)
+  notificado Boolean @default(false) // já avisamos que abriu vaga?
+  atendido  Boolean @default(false) // conseguiu agendar?
+  criadoEm  DateTime @default(now())
+
+  servico Servico @relation(fields: [servicoId], references: [id])
+  @@index([dataISO])
+  @@index([atendido])
 }
 
 // Conta Google do dono (OAuth2) — FASE 5

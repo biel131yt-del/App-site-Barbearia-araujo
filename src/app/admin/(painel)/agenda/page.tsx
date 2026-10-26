@@ -297,6 +297,11 @@ export default function AdminAgenda() {
                 </li>
               ))}
               </ul>
+              <p className="mt-2 text-xs text-slate-400">
+                💡 <strong>Dica:</strong> para bloquear um horário individual sem fechar o dia inteiro, remova o intervalo
+                e crie dois novos (ex: 19:00–20:00 e 21:00–22:00 para pular o 20:00). Horários quebrados (ex: 17:30)
+                funcionam — basta definir o início/fim com minutos.
+              </p>
             </div>
           )}
           <div className="mt-3 grid gap-2">
