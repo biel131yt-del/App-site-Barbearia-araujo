@@ -47,3 +47,4 @@ prisma/migrations-sqlite-bak/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env*
