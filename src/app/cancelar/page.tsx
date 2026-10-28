@@ -257,7 +257,7 @@ export default function CancelarPage() {
                     variant="accent"
                     onClick={() => {
                       const ag = agendamentos.find((a) => a.id === remarcarId);
-                      if (ag && ag.tokenAcesso) remarcarAgendamento(ag.tokenAcesso, ag.dataISO, ag.hora);
+                      if (ag && ag.tokenAcesso) remarcarAgendamento(ag.tokenAcesso);
                     }}
                     disabled={cancelando === remarcarId || !novaData || !novaHora}
                     className="w-full press"
