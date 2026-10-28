@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FundoBarbearia } from "@/components/marca";
 import { formatarDataBR } from "@/lib/agendamento";
+import { apenasDigitos, telefoneValido } from "@/lib/agendamento";
 
 type AgendamentoUI = {
   id: string;
@@ -22,7 +23,7 @@ type AgendamentoUI = {
 };
 
 export default function CancelarPage() {
-  const [token, setToken] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [lembrar, setLembrar] = useState(true);
   const [carregando, setCarregando] = useState(false);
   const [agendamentos, setAgendamentos] = useState<AgendamentoUI[]>([]);
@@ -34,28 +35,28 @@ export default function CancelarPage() {
   const [novaHora, setNovaHora] = useState("");
 
   useEffect(() => {
-    const salvo = localStorage.getItem("barbearia_token");
-    if (salvo) setToken(salvo);
+    const salvo = localStorage.getItem("barbearia_telefone");
+    if (salvo) setTelefone(salvo);
   }, []);
 
   async function buscarAgendamentos() {
-    if (!token.trim()) {
-      return setErro("Informe o token de acesso do seu agendamento.");
+    const digitos = apenasDigitos(telefone);
+    if (!telefoneValido(telefone)) {
+      return setErro("Digite um WhatsApp válido com DDD.");
     }
     setCarregando(true);
     setErro("");
     setMsg("");
     try {
-      // Busca agendamento pelo token direto
-      const r = await fetch(`/api/agendamentos/minhos?token=${encodeURIComponent(token.trim())}`, {
+      const r = await fetch(`/api/agendamentos/minhos?telefone=${encodeURIComponent(digitos)}`, {
         cache: "no-store",
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.erro ?? "Falha ao buscar agendamentos");
       setAgendamentos(j.agendamentos ?? []);
-      if (lembrar) localStorage.setItem("barbearia_token", token.trim());
+      if (lembrar) localStorage.setItem("barbearia_telefone", telefone);
       if (j.agendamentos?.length === 0) {
-        setMsg("Nenhum agendamento ativo encontrado para este token.");
+        setMsg("Nenhum agendamento ativo encontrado para este WhatsApp.");
       }
     } catch {
       setErro("Falha ao buscar agendamentos. Tente novamente.");
@@ -64,20 +65,18 @@ export default function CancelarPage() {
     }
   }
 
-  async function cancelarAgendamento(id: string) {
-    setCancelando(id);
+  async function cancelarAgendamento(tokenAcesso: string) {
+    setCancelando(tokenAcesso);
     try {
       const r = await fetch("/api/agendamentos/cancelar", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tokenAcesso: token.trim(), motivo: "Solicitado pelo cliente" }),
+        body: JSON.stringify({ tokenAcesso, motivo: "Solicitado pelo cliente" }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.erro ?? "Falha ao cancelar");
       setMsg("Agendamento cancelado com sucesso.");
-      setToken("");
-      localStorage.removeItem("barbearia_token");
-      setAgendamentos([]);
+      await buscarAgendamentos();
     } catch {
       setErro("Falha ao cancelar. Tente novamente.");
     } finally {
@@ -85,14 +84,14 @@ export default function CancelarPage() {
     }
   }
 
-  async function remarcarAgendamento(id: string) {
+  async function remarcarAgendamento(tokenAcesso: string) {
     if (!novaData || !novaHora) return setErro("Informe a nova data e horário.");
-    setCancelando(id);
+    setCancelando(tokenAcesso);
     try {
       const r = await fetch("/api/agendamentos/remarcar", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tokenAcesso: token.trim(), novaData, novaHora }),
+        body: JSON.stringify({ tokenAcesso, novaData, novaHora }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.erro ?? "Falha ao remarcar");
@@ -100,9 +99,7 @@ export default function CancelarPage() {
       setRemarcarId(null);
       setNovaData("");
       setNovaHora("");
-      setToken("");
-      localStorage.removeItem("barbearia_token");
-      setAgendamentos([]);
+      await buscarAgendamentos();
     } catch {
       setErro("Falha ao remarcar. O novo horário pode estar ocupado.");
     } finally {
@@ -110,13 +107,13 @@ export default function CancelarPage() {
     }
   }
 
-  async function confirmarWhatsApp(id: string) {
-    setCancelando(id);
+  async function confirmarWhatsApp(tokenAcesso: string) {
+    setCancelando(tokenAcesso);
     try {
       const r = await fetch("/api/agendamentos/confirmar-whatsapp", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tokenAcesso: token.trim() }),
+        body: JSON.stringify({ tokenAcesso }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.erro ?? "Falha ao confirmar");
@@ -141,15 +138,17 @@ export default function CancelarPage() {
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
           <h1 className="font-display text-3xl tracking-wide text-white">CANCELAR OU REMARCAR</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Informe o token de acesso enviado por WhatsApp para gerenciar seu agendamento.
+            Informe seu WhatsApp para ver seus agendamentos ativos.
           </p>
 
           <div className="mt-5 grid gap-3">
             <Input
-              rotulo="Token de acesso"
-              placeholder="Cole o token recebido no WhatsApp"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
+              rotulo="Seu WhatsApp"
+              placeholder="(51) 99682-4286"
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+              inputMode="tel"
+              autoComplete="tel"
             />
             <div className="flex items-center gap-2 text-sm text-slate-300">
               <input
@@ -158,12 +157,12 @@ export default function CancelarPage() {
                 onChange={(e) => setLembrar(e.target.checked)}
                 className="rounded border-white/10 bg-white/5 focus:border-accent"
               />
-              <label className="cursor-pointer select-none">Lembrar token neste navegador</label>
+              <label className="cursor-pointer select-none">Lembrar WhatsApp neste navegador</label>
             </div>
             <Button
               variant="accent"
               onClick={buscarAgendamentos}
-              disabled={carregando || !token.trim()}
+              disabled={carregando || !telefoneValido(telefone)}
               className="w-full press"
             >
               {carregando ? "Buscando…" : "Ver meus agendamentos"}
@@ -206,7 +205,7 @@ export default function CancelarPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => confirmarWhatsApp(ag.id)}
+                        onClick={() => confirmarWhatsApp(ag.tokenAcesso!)}
                         disabled={cancelando === ag.id}
                         className="border-green-500/50 text-green-300 hover:bg-green-500/10"
                       >
@@ -224,7 +223,7 @@ export default function CancelarPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => cancelarAgendamento(ag.id)}
+                      onClick={() => cancelarAgendamento(ag.tokenAcesso!)}
                       disabled={cancelando === ag.id}
                       className="border-red-500/50 text-red-300 hover:bg-red-500/10"
                     >
@@ -258,7 +257,7 @@ export default function CancelarPage() {
                     variant="accent"
                     onClick={() => {
                       const ag = agendamentos.find((a) => a.id === remarcarId);
-                      if (ag) remarcarAgendamento(ag.id);
+                      if (ag && ag.tokenAcesso) remarcarAgendamento(ag.tokenAcesso, ag.dataISO, ag.hora);
                     }}
                     disabled={cancelando === remarcarId || !novaData || !novaHora}
                     className="w-full press"
@@ -274,11 +273,10 @@ export default function CancelarPage() {
           )}
 
           <p className="mt-4 text-xs text-slate-500 text-center">
-            Não encontrou seu agendamento? O token é enviado por WhatsApp quando você agenda.
-            Se não tiver, chame a gente diretamente.
+            Não encontrou seu agendamento? Chame a gente diretamente pelo WhatsApp.
           </p>
           <a
-            href={`https://wa.me/${"555196824286"}?text=${encodeURIComponent("Fala! Preciso cancelar ou remarcar meu agendamento, mas não encontrei o token de acesso.")}`}
+            href={`https://wa.me/${"555196824286"}?text=${encodeURIComponent("Fala! Preciso cancelar ou remarcar meu agendamento.")}`}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-green-500 px-5 font-bold text-white"
