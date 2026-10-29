@@ -26,7 +26,7 @@ export function Header() {
             href="/cancelar"
             className="press flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 text-white shadow-card transition hover:bg-brand-700"
           >
-            <CalendarIcon className="h-6 w-6" />
+            <CalendarioIcon className="h-6 w-6" />
           </Link>
         </div>
       </div>
