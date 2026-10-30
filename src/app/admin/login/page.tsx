@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function AdminLogin() {
-  const router = useRouter();
   const params = useSearchParams();
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
@@ -22,7 +21,6 @@ export default function AdminLogin() {
 
     setCarregando(true);
     try {
-      // redirect: true é o padrão do NextAuth e define o cookie de sessão automaticamente
       await signIn("credentials", {
         login: login.trim().toLowerCase(),
         senha,

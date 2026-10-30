@@ -1,102 +1,43 @@
-// Auth do painel (NextAuth v4 + Credentials) — FASE 9
-// Login simples do dono/equipe; papéis: admin | agenda | caixa.
+// Auth do painel — NextAuth v4 + Credentials
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 }, // 30 dias
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/admin/login" },
-  cookies: {
-    sessionToken: {
-      name: `nextauth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
-      },
-    },
-    callbackUrl: {
-      name: `nextauth.callback-url`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
-      },
-    },
-    csrfToken: {
-      name: `nextauth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
-      },
-    },
-    state: {
-      name: `nextauth.state`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
-      },
-    },
-    nonce: {
-      name: `nextauth.nonce`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NEXTAUTH_URL ? process.env.NEXTAUTH_URL.startsWith("https") : false,
-      },
-    },
-  },
   providers: [
     CredentialsProvider({
       name: "Painel",
-      credentials: { login: { label: "Login", type: "text" }, senha: { label: "Senha", type: "password" } },
+      credentials: {
+        login: { label: "Login", type: "text" },
+        senha: { label: "Senha", type: "password" },
+      },
       async authorize(creds) {
         const login = (creds?.login ?? "").trim().toLowerCase();
         const senha = creds?.senha ?? "";
         if (!login || !senha) return null;
+
         const user = await db.usuario.findUnique({ where: { login } });
         if (!user || !user.ativo) return null;
-        // Acesso temporário vencido → bloqueia
-        if (user.expiraEm && user.expiraEm.getTime() < Date.now()) return null;
+
         const ok = await bcrypt.compare(senha, user.senhaHash);
         if (!ok) return null;
-        return { id: user.id, name: user.nome, papel: user.papel } as { id: string; name: string; papel: string };
+
+        return {
+          id: user.id,
+          name: user.nome,
+          papel: user.papel,
+        } as { id: string; name: string; papel: string };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.uid = (user as unknown as { id: string }).id;
-        token.papel = (user as unknown as { papel: string }).papel;
-      }
-      // Revalida o papel no banco a cada requisição (promoção/rebaixamento vale na hora,
-      // sem precisar sair e entrar de novo). Expirado/bloqueado vira "expirado"
-      // e o middleware + permissões barram tudo.
-      try {
-        if (token.uid) {
-          const atual = await db.usuario.findUnique({
-            where: { id: token.uid as string },
-            select: { papel: true, ativo: true, expiraEm: true },
-          });
-          const vencido = atual?.expiraEm && atual.expiraEm.getTime() < Date.now();
-          if (!atual || !atual.ativo || vencido) {
-            token.papel = "expirado";
-            return token;
-          }
-          token.papel = atual.papel;
-        }
-      } catch {
-        /* mantém o papel do token */
+        token.uid = (user as { id: string }).id;
+        token.papel = (user as { papel: string }).papel;
       }
       return token;
     },
